@@ -1,0 +1,2 @@
+subdir('check')
+subdir('integration')

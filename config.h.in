@@ -1,0 +1,57 @@
+/*******************************************************************************
+
+ * Dolby Home Audio GStreamer Plugins
+ * Copyright (C) 2020, Dolby Laboratories
+
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Lesser General Public License for more details.
+
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+ ******************************************************************************/
+
+#pragma once
+
+/* essentials */
+#mesondefine LICENSE
+#mesondefine ORIGIN
+#mesondefine PACKAGE
+#mesondefine VERSION
+
+/* shim layer defines */
+#define OPEN_DYNLIB_FUN(_lib_) int _lib_##_try_open_dynlib(void);
+
+#mesondefine HAVE_DLADDR
+
+#mesondefine DLB_AUDIO_PARSER_OPEN_DYNLIB
+#ifdef DLB_AUDIO_PARSER_OPEN_DYNLIB
+OPEN_DYNLIB_FUN(dlb_audio_parser)
+#endif
+
+#mesondefine DLB_DAP_OPEN_DYNLIB
+#ifdef DLB_DAP_OPEN_DYNLIB
+OPEN_DYNLIB_FUN(dlb_dap)
+#endif
+
+#mesondefine DLB_EVO_OPEN_DYNLIB
+#ifdef DLB_EVO_OPEN_DYNLIB
+OPEN_DYNLIB_FUN(dlb_evo)
+#endif
+
+#mesondefine DLB_OAR_OPEN_DYNLIB
+#ifdef DLB_OAR_OPEN_DYNLIB
+OPEN_DYNLIB_FUN(dlb_oar)
+#endif
+
+#mesondefine DLB_UDC_OPEN_DYNLIB
+#ifdef DLB_UDC_OPEN_DYNLIB
+OPEN_DYNLIB_FUN(dlb_udc)
+#endif
