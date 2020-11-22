@@ -1,7 +1,9 @@
 # gst-home-audio
 
 ## What It Is
-GStreamer plugins collection for building Dolby Home Audio media pipeline 
+GStreamer plugins collection for building Dolby Home Audio media pipeline
+
+> :warning: Plugins require proprietary libraries to initialize properly
 
 ## Dependencies
  - [Python](https://python.org) (version 3.5 or newer)
