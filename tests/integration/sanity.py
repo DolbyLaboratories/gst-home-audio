@@ -18,7 +18,7 @@ class TestSanity(unittest.TestCase):
     def test_pipeline(self):
         test_file = testfiles_path.joinpath('51_1kHz_ddp.ec3')
         pipeline = Gst.parse_launch(
-            "filesrc location={} ! dlbaudiodecbin ! dlbdap ! fakesink".format(test_file))
+            "filesrc location={} ! dlbac3parse ! dlbac3dec ! fakesink".format(test_file))
 
         pipeline.set_state(Gst.State.PLAYING)
 

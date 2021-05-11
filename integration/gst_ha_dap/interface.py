@@ -5,7 +5,7 @@ from .pipeline import GstHomeAudioPipeline
 from .xml_parse import xml_to_json, get_endpoints
 from .settings import gst_home_audio_settings
 
-VERSION = "0.8.1"
+VERSION = "0.9.0"
 
 PREAMBLE = """
 Dolby Atmos for home audio executable
@@ -15,13 +15,6 @@ Supported formats:
     Dolby Digital:      .ac3
     Dolby Digital Plus: .ec3, .eb3
 
-Unpublished work.  Copyright 2020 Dolby Laboratories, Inc. and
-Dolby Laboratories Licensing Corporation.  All Rights Reserved.
-
-USE OF THIS SOFTWARE IS SUBJECT TO A LEGAL AGREEMENT BETWEEN YOU AND DOLBY
-LABORATORIES. DO NOT USE THIS SOFTWARE UNLESS YOU AGREE TO THE TERMS AND
-CONDITIONS IN THE AGREEMENT.  BY USING THIS SOFTWARE, YOU ACKNOWLEDGE THAT
-YOU HAVE READ THE AGREEMENT AND THAT YOU AGREE TO BE BOUND BY ITS TERMS.
 """ % VERSION
 
 ALLOWED_SPEAKER_NAMES = ["lr", "c", "lfe", "lrs", "lrrs", "lre", "lrse",
@@ -105,7 +98,7 @@ def parse_command_line():
         args: A ::class::`argparse.Namespace` instance holding command line
             arguments and their values.
     """
-    parser = argparse.ArgumentParser(prog='gst-home-audio',
+    parser = argparse.ArgumentParser(prog='gst-ha-dap',
                                      formatter_class=argparse.RawTextHelpFormatter)
     config_group = parser.add_mutually_exclusive_group()
     parser.add_argument('-i',
@@ -227,22 +220,56 @@ def validate_command_line(args):
             return False, ("Serialized configuration cannot be used together "
                            "with speaker presence.")
 
-        if profile != ("default" or "off") and ("enable" in args.drc):
+        if (profile != "default" and profile != "off") and (("enable" in args.drc) or ("auto" in args.drc)):
             return False, ("If postprocessing is enabled, "
                            "DRC must be disabled.")
+
+        if (configuration['virtualizer-settings']['height-filter-enable'] ==
+                True ) and ('lre' not in args.speakers):
+            return False, ("Height filter requires Dolby Atmos "
+                            "enabled speakers")
+
+        if (configuration['virtualizer-settings']['surround-speaker-angle'] !=
+                0 ) and ('lrs' not in args.speakers):
+            return False, ("Surround speaker angle cannot be set if Left/Right "
+                            "surround speakers are not present.")
+
+        if (configuration['virtualizer-settings']['rear-surround-speaker-angle']
+                != 0 ) and ('lrrs' not in args.speakers):
+            return False, ("Rear surround speaker angle cannot be set if Left/Right "
+                            "surround speakers are not present.")
+
+        if (configuration['virtualizer-settings']['height-speaker-angle'] !=
+                0 ) and (('lre' not in args.speakers) and ('lrtf' not in args.speakers) and ('lrtm' not in args.speakers)):
+            return False, ("Height speaker angle cannot be set if Left/Right "
+                            "Dolby Atmos enabled speakers or Left/Right top middle "
+                            " or Left/Right top front speakers are not present.")
+
+        if (configuration['virtualizer-settings']['rear-height-speaker-angle']
+                != 0 ) and (('lrse' not in args.speakers) and ('lrrse' not in args.speakers) and ('lrtr' not in args.speakers)):
+            return False, ("Rear height speaker angle cannot be set if Left/Right "
+                            "surround Dolby Atmos enable speakers or Left/Right "
+                            "rear surround Dolby Atmos enabled speakers or "
+                            "Left/Right top rear speakers are not present.")
+
 
     if args.xml_config is not None:
         for sets in args.xml_config.split(':'):
             option = sets.split('=')
             if not option[0] in ['file', 'endpoint', 'profile', 'virt']:
                 return False, "Invalid option: %s" % option[0]
-            if option[0] == ['file']:
-                if not os.path.isfile(args.xml_config):
+            if option[0] == 'file':
+                if not os.path.isfile(option[1]):
                     return False, ("Cannot open input XML configuration "
                                    "file: %s" % args.xml_config)
             elif option[0] == ['virt']:
                 if not option[1] in ['enable', 'disable']:
                     return False, "Invalid virtualizer setting: " % option[1]
+
+            elif option[0] == 'profile':
+                if (option[1] not in ["default","off"]) and ("enable" in args.drc or "auto" in args.drc):
+                    return False, ("If postprocessing is enabled, "
+                                    "DRC must be disabled.")
 
         if args.speakers != 'lr':
             return False, ("Configuration file cannot be used together with "

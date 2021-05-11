@@ -1,7 +1,7 @@
 /*******************************************************************************
 
  * Dolby Home Audio GStreamer Plugins
- * Copyright (C) 2020, Dolby Laboratories
+ * Copyright (C) 2020-2021, Dolby Laboratories
 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -88,7 +88,7 @@ typedef enum
   DLB_AUDIO_DECODER_DRC_MODE_DISABLE,
   DLB_AUDIO_DECODER_DRC_MODE_ENABLE,
   DLB_AUDIO_DECODER_DRC_MODE_AUTO,
-  DLB_AUDIO_DECODER_DRC_MODE_DEFAULT = DLB_AUDIO_DECODER_DRC_MODE_ENABLE,
+  DLB_AUDIO_DECODER_DRC_MODE_DEFAULT = DLB_AUDIO_DECODER_DRC_MODE_DISABLE,
 } DlbAudioDecoderDrcMode;
 
 G_END_DECLS

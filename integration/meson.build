@@ -1,3 +1,7 @@
-install_data('frontend.py', install_dir : get_option('bindir'), install_mode: 'rw-r--r--')
-install_data('gst-home-audio', install_dir : get_option('bindir'), install_mode: 'rwxr-xr-x')
-install_subdir('gst_home_audio', install_dir : get_option('bindir'), install_mode: 'rw-r--r--')
+install_data('frontend-dap.py', install_dir : get_option('bindir'), install_mode: 'rw-r--r--')
+install_data('gst-ha-dap', install_dir : get_option('bindir'), install_mode: 'rwxr-xr-x')
+install_subdir('gst_ha_dap', install_dir : get_option('bindir'), install_mode: 'rw-r--r--')
+
+install_data('frontend-flexr.py', install_dir : get_option('bindir'), install_mode: 'rw-r--r--')
+install_data('gst-ha-flexr', install_dir : get_option('bindir'), install_mode: 'rwxr-xr-x')
+install_subdir('gst_ha_flexr', install_dir : get_option('bindir'), install_mode: 'rw-r--r--')

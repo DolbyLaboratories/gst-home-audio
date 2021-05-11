@@ -1,7 +1,7 @@
 /*******************************************************************************
 
  * Dolby Home Audio GStreamer Plugins
- * Copyright (C) 2020, Dolby Laboratories
+ * Copyright (C) 2020-2021, Dolby Laboratories
 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -161,14 +161,12 @@ dlb_ac3dec_init (DlbAc3Dec * ac3dec)
 {
   ac3dec->outmode = DLB_AUDIO_DECODER_OUT_MODE_RAW;
   ac3dec->output_format = GST_AUDIO_FORMAT_F32LE;
+  ac3dec->drc_mode = DLB_AUDIO_DECODER_DRC_MODE_DEFAULT;
   ac3dec->bps = 4;
   ac3dec->metadata_buffer = g_malloc (DLB_UDC_MAX_MD_SIZE);
   ac3dec->cache_buffer = NULL;
   ac3dec->tags = gst_tag_list_new_empty ();
 
-  memset (&ac3dec->info, 0, sizeof (ac3dec->info));
-
-  ac3dec->drc_mode = DLB_AUDIO_DECODER_DRC_MODE_DEFAULT;
   dlb_udc_drc_settings_init (&ac3dec->drc);
 
   gst_audio_decoder_set_needs_format (GST_AUDIO_DECODER (ac3dec), TRUE);
@@ -191,35 +189,18 @@ dlb_ac3dec_set_property (GObject * object, guint property_id,
     case PROP_OUT_MODE:
       ac3dec->outmode = g_value_get_enum (value);
       update_static = TRUE;
-
-      GST_DEBUG_OBJECT (ac3dec, "set outmode=%d", ac3dec->outmode);
       break;
     case PROP_DRC_MODE:
       ac3dec->drc_mode = g_value_get_enum (value);
-
-      GST_DEBUG_OBJECT (ac3dec, "set drc-mode=%d", ac3dec->drc_mode);
-
-      if (DLB_AUDIO_DECODER_DRC_MODE_DISABLE == ac3dec->drc_mode) {
-        ac3dec->drc.cut = 0;
-        ac3dec->drc.boost = 0;
-      }
       update_dynamic = TRUE;
       break;
     case PROP_DRC_CUT:
-      if (DLB_AUDIO_DECODER_DRC_MODE_DISABLE != ac3dec->drc_mode) {
-        ac3dec->drc.cut = g_value_get_double (value);
-        update_dynamic = TRUE;
-
-        GST_DEBUG_OBJECT (ac3dec, "set drc-cut=%f", ac3dec->drc.cut);
-      }
+      ac3dec->drc.cut = g_value_get_double (value);
+      update_dynamic = TRUE;
       break;
     case PROP_DRC_BOOST:
-      if (DLB_AUDIO_DECODER_DRC_MODE_DISABLE != ac3dec->drc_mode) {
-        ac3dec->drc.boost = g_value_get_double (value);
-        update_dynamic = TRUE;
-
-        GST_DEBUG_OBJECT (ac3dec, "set drc-boost=%f", ac3dec->drc.boost);
-      }
+      ac3dec->drc.boost = g_value_get_double (value);
+      update_dynamic = TRUE;
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -418,6 +399,11 @@ dlb_ac3dec_start (GstAudioDecoder * decoder)
   /* Base on src pad peer caps evaluates sample format and size */
   evaluate_output_sample_format (ac3dec);
 
+  ac3dec->channels = 0;
+  memset (&ac3dec->info, 0, sizeof (ac3dec->info));
+  memset (&ac3dec->gstpos, 0, sizeof (ac3dec->gstpos));
+  memset (&ac3dec->dlbpos, 0, sizeof (ac3dec->dlbpos));
+
   /* Get allocator from decoder base class and set memory alignment */
   gst_audio_decoder_get_allocator (&ac3dec->base_ac3dec, &ac3dec->alloc_dec,
       &alloc_params);
@@ -506,8 +492,11 @@ dlb_ac3dec_handle_frame (GstAudioDecoder * decoder, GstBuffer * inbuf)
   }
 
   for (int i = 0; i < DLB_UDC_MAX_BLOCKS_PER_FRAME; ++i) {
-    dlb_evo_payload meta = {.data = ac3dec->metadata_buffer,.size =
-          DLB_UDC_MAX_MD_SIZE,.offset = 0,.id = 0
+    dlb_evo_payload meta = {
+      .data = ac3dec->metadata_buffer,
+      .size = DLB_UDC_MAX_MD_SIZE,
+      .offset = 0,
+      .id = 0
     };
 
     /* allocate output buffer */
@@ -761,18 +750,29 @@ update_static_params (DlbAc3Dec * ac3dec)
 static gboolean
 update_dynamic_params (DlbAc3Dec * ac3dec)
 {
+  dlb_udc_drc_settings drc;
+
   if (!ac3dec->udc) {
     GST_DEBUG_OBJECT (ac3dec, "UDC handle not created");
     return FALSE;
   }
 
-  GST_DEBUG_OBJECT (ac3dec, "Dynamic settings: drc_boost %.2f, drc_cut %.2f",
-      ac3dec->drc.boost, ac3dec->drc.cut);
+  if (DLB_AUDIO_DECODER_DRC_MODE_DISABLE == ac3dec->drc_mode) {
+    drc.cut = 0;
+    drc.boost = 0;
+  } else {
+    drc.cut = ac3dec->drc.cut;
+    drc.boost = ac3dec->drc.boost;
+  }
 
-  if (dlb_udc_drc_settings_set (ac3dec->udc, &ac3dec->drc)) {
+  GST_DEBUG_OBJECT (ac3dec, "Dynamic settings: drc_boost %.2f, drc_cut %.2f",
+      drc.boost, drc.cut);
+
+  if (dlb_udc_drc_settings_set (ac3dec->udc, &drc)) {
     GST_WARNING_OBJECT (ac3dec, "UDC DRC settings failed.");
     return FALSE;
   }
+
   return TRUE;
 }
 

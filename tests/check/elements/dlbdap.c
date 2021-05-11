@@ -1,7 +1,7 @@
 /*******************************************************************************
 
  * Dolby Home Audio GStreamer Plugins
- * Copyright (C) 2020, Dolby Laboratories
+ * Copyright (C) 2020-2021, Dolby Laboratories
 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -408,7 +408,7 @@ GST_START_TEST (test_dap_serialized_settings)
       "channel-mask", GST_TYPE_BITMASK, &channel_mask, NULL);
 
   fail_unless_equals_int (channels, 3);
-  fail_unless_equals_int64_hex (channel_mask, 0);
+  fail_unless_equals_int (channel_mask, 0);
 
   gst_caps_unref (caps);
   g_object_unref (srcpad);

@@ -4,12 +4,12 @@ ARG DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    python2 \
     python3 \
     python3-setuptools \
     python3-pip \
-    python-gi \
     python3-gi \
+    python3-venv \
+    python3-pkg-resources \
     git \
     ninja-build \
     libasound2 \

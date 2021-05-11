@@ -14,7 +14,6 @@ dlb_utils_lib = library('gstdlbutils', dlb_utils_sources,
                c_args : gst_plugins_dlb_args,
          dependencies : glib_deps + [gst_base_dep, gst_audio_dep, dlb_utils_deps],
               install : true,
-          install_dir : plugins_install_dir,
 )
 
 dlb_utils_dep = declare_dependency(

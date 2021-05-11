@@ -1,7 +1,7 @@
 /*******************************************************************************
 
  * Dolby Home Audio GStreamer Plugins
- * Copyright (C) 2020, Dolby Laboratories
+ * Copyright (C) 2020-2021, Dolby Laboratories
 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -94,6 +94,8 @@ fill_json_array_##type (const type *tab, guint size)                           \
     json_array_add_int_element (array, tab[i]);                                \
   return array;                                                                \
 }
+
+typedef unsigned int uint;
 
 MAKE_FILL_JSON_ARRAY_HELPERS (int)
 MAKE_FILL_JSON_ARRAY_HELPERS (uint)

@@ -1,7 +1,7 @@
 /*******************************************************************************
 
  * Dolby Home Audio GStreamer Plugins
- * Copyright (C) 2020, Dolby Laboratories
+ * Copyright (C) 2020-2021, Dolby Laboratories
 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -25,10 +25,17 @@
 #include "config.h"
 #endif
 
-#include <assert.h>
 
 #if defined(HAVE_DLADDR)
-#include <dlfcn.h>
+ #include <dlfcn.h>
+#elif defined(HAVE_WINAPI)
+ #include <Windows.h>
+#else
+ #error dladdr not implemented
+#endif
+
+
+#include <assert.h>
 
 static inline void *
 get_proc_address (void *lib, const char *name)
@@ -36,21 +43,26 @@ get_proc_address (void *lib, const char *name)
   assert (lib);
   assert (name);
 
+#if defined(HAVE_DLADDR)
   return dlsym (lib, name);
+#elif defined(HAVE_WINAPI)
+  return GetProcAddress((HMODULE)lib, name);
+#endif
 }
 
 static inline void *
 open_dynamic_lib (const char *name)
 {
+#if defined(HAVE_DLADDR)
   void *lib = dlopen (name, RTLD_NOW | RTLD_LOCAL);
+#elif defined(HAVE_WINAPI)
+  void *lib = LoadLibrary(name);
+#endif
 
   if (!lib)
     return 0;
 
   return lib;
 }
-#else
-#error dladdr not implemented
-#endif
 
 #endif // __COMMON_SHIM_H_

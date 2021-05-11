@@ -1,7 +1,7 @@
 /*******************************************************************************
 
  * Dolby Home Audio GStreamer Plugins
- * Copyright (C) 2020, Dolby Laboratories
+ * Copyright (C) 2020-2021, Dolby Laboratories
 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -459,6 +459,9 @@ dlb_oar_query (GstBaseTransform * trans, GstPadDirection direction,
         guint64 latency = oar->latency_samples;
         gint rate = oar->ininfo.rate;
 
+        if (!rate)
+          return FALSE;
+
         if (gst_base_transform_is_passthrough (trans))
           latency = 0;
 
@@ -707,6 +710,9 @@ dlb_oar_push_drain (DlbOar * oar)
 
   inbuf = gst_buffer_new_allocate (allocator, insize, &params);
   gst_buffer_memset (inbuf, 0, 0, insize);
+
+  if (allocator)
+    gst_object_unref (allocator);
 
   dlb_oar_get_input_timing (oar, &timestamp, &offset);
   dlb_oar_set_output_timing (oar, inbuf, timestamp, offset);

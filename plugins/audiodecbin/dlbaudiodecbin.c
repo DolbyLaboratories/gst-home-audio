@@ -1,7 +1,7 @@
 /*******************************************************************************
 
  * Dolby Home Audio GStreamer Plugins
- * Copyright (C) 2020, Dolby Laboratories
+ * Copyright (C) 2020-2021, Dolby Laboratories
 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -46,7 +46,8 @@ static GstBinClass *parent_class = NULL;
   "audio/x-mat"
 
 #define DLB_AUDIO_DEC_BIN_SRC_CAPS                                             \
-  "audio/x-raw"
+  "audio/x-raw; "                                                              \
+  "audio/x-raw(" DLB_CAPS_FEATURE_META_OBJECT_AUDIO_META ")"                   \
 
 /* generic templates */
 static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
@@ -696,8 +697,10 @@ dlb_audio_dec_bin_on_dec_caps (GstPad * pad,
   GstEvent *event = GST_PAD_PROBE_INFO_EVENT (info);
   DlbAudioDecBin *decbin = DLB_AUDIO_DEC_BIN_CAST (user_data);
   GstCaps *caps = NULL;
+  GstCaps *peercaps = NULL;
   GstCapsFeatures *features = NULL;
   gboolean upstream_meta = FALSE;
+  gboolean downstream_meta = FALSE;
   guint32 seqnum = gst_event_get_seqnum (event);
 
   if (GST_EVENT_TYPE (event) != GST_EVENT_CAPS)
@@ -717,7 +720,25 @@ dlb_audio_dec_bin_on_dec_caps (GstPad * pad,
         DLB_CAPS_FEATURE_META_OBJECT_AUDIO_META);
   }
 
-  if (upstream_meta && decbin->oar == NULL) {
+  if ((peercaps = gst_pad_peer_query_caps (decbin->src, NULL))) {
+    guint i, size = gst_caps_get_size (peercaps);
+
+    for (i = 0; i < size; ++i) {
+      if ((features = gst_caps_get_features (peercaps, i))) {
+        downstream_meta =
+            gst_caps_features_contains (features,
+            DLB_CAPS_FEATURE_META_OBJECT_AUDIO_META);
+      }
+    }
+
+    gst_caps_unref (peercaps);
+  }
+
+  /* downstream element can decode metadata we should pass it through */
+  if (upstream_meta && downstream_meta) {
+    gst_element_unlink (decbin->conv, decbin->capsfilter);
+    gst_element_link (decbin->dec, decbin->capsfilter);
+  } else if (upstream_meta && decbin->oar == NULL) {
     /* object based audio, there is no oar yet */
     gst_pad_add_probe (pad, GST_PAD_PROBE_TYPE_BLOCK_DOWNSTREAM,
         dlb_audio_dec_bin_on_add_oar, decbin, NULL);

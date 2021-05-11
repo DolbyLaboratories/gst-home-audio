@@ -1,7 +1,7 @@
 /*******************************************************************************
 
  * Dolby Home Audio GStreamer Plugins
- * Copyright (C) 2020, Dolby Laboratories
+ * Copyright (C) 2020-2021, Dolby Laboratories
 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -148,6 +148,8 @@ GST_STATIC_PAD_TEMPLATE ("sink",
 G_DEFINE_TYPE_WITH_CODE (DlbDap, dlb_dap, GST_TYPE_BASE_TRANSFORM,
     GST_DEBUG_CATEGORY_INIT (dlb_dap_debug_category, "dlbdap", 0,
         "debug category for dap element"));
+
+typedef unsigned int uint;
 
 #define G_TYPE_int G_TYPE_INT
 #define G_TYPE_uint G_TYPE_UINT
@@ -712,7 +714,7 @@ static gboolean
 dlb_dap_get_config_from_json (DlbDap * dap)
 {
   GError *error = NULL;
-  gint virtualizer_enable;
+  gint virtualizer_enable = 0;
 
   GST_DEBUG_OBJECT (dap, "Parsing config from %s", dap->json_config_path);
 
@@ -1309,6 +1311,9 @@ dlb_dap_query (GstBaseTransform * trans, GstPadDirection direction,
         guint64 latency = dap->latency_samples;
         gint rate = dap->ininfo.rate;
 
+        if (!rate)
+          return FALSE;
+
         if (gst_base_transform_is_passthrough (trans))
           latency = 0;
 
@@ -1449,35 +1454,39 @@ dlb_dap_handle_tag_list (DlbDap * dap, GstTagList * taglist)
 {
   GstClockTime timestamp;
   guint64 offset;
-  gchar *audio_codec;
+  gchar *audio_codec = NULL;
   gboolean object_audio = FALSE;
 
   gst_tag_list_get_string (taglist, "audio-codec", &audio_codec);
-  gst_tag_list_get_boolean (taglist, "object-audio", &object_audio);
 
   GST_DEBUG_OBJECT (dap, "audio_codec %s, object-audio %d", audio_codec,
       object_audio);
 
-  if (strstr (audio_codec, "E-AC-3") || strstr (audio_codec, "AC-3")) {
-    dap->profile.volume_leveler_in_target = -496;
-    gst_tag_list_add (taglist, GST_TAG_MERGE_REPLACE,
-        "surround-decoder-enable", dap->profile.surround_decoder_enable, NULL);
-  } else if (dap->ininfo.channels > 2) {
-    dap->profile.volume_leveler_in_target = -432;
-  } else {
-    dap->profile.volume_leveler_in_target = -320;
+  if (gst_tag_list_get_string (taglist, "audio-codec", &audio_codec)) {
+    gst_tag_list_get_boolean (taglist, "object-audio", &object_audio);
+
+    if (strstr (audio_codec, "E-AC-3") || strstr (audio_codec, "AC-3")) {
+      dap->profile.volume_leveler_in_target = -496;
+      gst_tag_list_add (taglist, GST_TAG_MERGE_REPLACE,
+          "surround-decoder-enable", dap->profile.surround_decoder_enable,
+          NULL);
+    } else if (dap->ininfo.channels > 2) {
+      dap->profile.volume_leveler_in_target = -432;
+    } else {
+      dap->profile.volume_leveler_in_target = -320;
+    }
+
+    dlb_dap_get_input_timing (dap, &timestamp, &offset);
+    timestamp +=
+        gst_util_uint64_scale_int (gst_adapter_available (dap->adapter) /
+        dap->ininfo.bpf, GST_SECOND, dap->ininfo.rate);
+
+    dlb_dap_post_stream_info_message (dap, audio_codec, object_audio,
+        dap->profile.surround_decoder_enable, timestamp);
+
+    dlb_dap_update_state (dap);
+    g_free (audio_codec);
   }
-
-  dlb_dap_get_input_timing (dap, &timestamp, &offset);
-  timestamp +=
-      gst_util_uint64_scale_int (gst_adapter_available (dap->adapter) /
-      dap->ininfo.bpf, GST_SECOND, dap->ininfo.rate);
-
-  dlb_dap_post_stream_info_message (dap, audio_codec, object_audio,
-      dap->profile.surround_decoder_enable, timestamp);
-
-  dlb_dap_update_state (dap);
-  g_free (audio_codec);
 }
 
 /* sink and src pad event handlers */
@@ -1556,6 +1565,9 @@ dlb_dap_push_drain (DlbDap * dap)
 
   inbuf = gst_buffer_new_allocate (allocator, insize, &params);
   gst_buffer_memset (inbuf, 0, 0, insize);
+
+  if (allocator)
+    gst_object_unref (allocator);
 
   dlb_dap_get_input_timing (dap, &timestamp, &offset);
   dlb_dap_set_output_timing (dap, inbuf, timestamp, offset);
@@ -1661,10 +1673,10 @@ no_output:
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  #ifdef DLB_DAP_OPEN_DYNLIB
+#ifdef DLB_DAP_OPEN_DYNLIB
   if (dlb_dap_try_open_dynlib ())
     return FALSE;
-  #endif
+#endif
 
   if (!gst_element_register (plugin, "dlbdap", GST_RANK_PRIMARY, GST_TYPE_DAP))
     return FALSE;

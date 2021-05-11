@@ -146,7 +146,7 @@ def get_gain_settings(settings, root):
 
     for child in prof_root:
         setting_name = child.tag
-        
+
         # Get gain settings
         if setting_name in ['pregain', 'postgain', 'system-gain']:
             setting_value = child.attrib['value']
@@ -196,12 +196,16 @@ def xml_to_json(ifile, ofile, endpoint, virt_enable, sel_profile=None):
 
     json_struct = INIT_SPEC
 
-    # Find first endpoint name if not specified
+    # Automatical assigning if there is only one endpoint
+    endpoint_counter = 0
     if endpoint is None:
         for child in root:
-            if child.tag == 'endpoint':
+            if child.tag == 'endpoint' and endpoint_counter == 0:
                 endpoint = child.attrib['type']
-                break
+                endpoint_counter += 1
+            elif child.tag == 'endpoint' and endpoint_counter > 0:
+                raise Exception("If number of endpoints is greater than one, "
+                                " endpoint name has to be specified.")
 
     # Find endpoint to convert
     endpoint_root = None
@@ -211,6 +215,8 @@ def xml_to_json(ifile, ofile, endpoint, virt_enable, sel_profile=None):
     if endpoint_root is None:
         raise Exception("The specified endpoint name was not found in "
                         "XML configuration file!")
+
+    validate_endpoint(endpoint_root)
 
     # Get serialized configuration
     for child in endpoint_root:
@@ -246,3 +252,18 @@ def xml_to_json(ifile, ofile, endpoint, virt_enable, sel_profile=None):
 
     with open(ofile, 'w') as f:
         f.write(json.dumps(json_struct, indent=4, sort_keys=True))
+
+def validate_endpoint(root):
+
+    sample_rates_in_endpoint = []
+    # sr_and_virt_settings = []
+
+    for configs in root.iter('serialized-configs'):
+        for config in configs.findall('serialized-config'):
+            sample_rates_in_endpoint.append(config.attrib['sample_rate'])
+            # sr_and_virt_settings.append((config.attrib['sample_rate'], config.attrib['virtualizer_enabled']))
+
+    for required_sr in ['32000', '44100', '48000']:
+        if required_sr not in sample_rates_in_endpoint:
+            raise Exception("Missing serialized config for "
+                "%.1f kHz in '%s' endpoint." % (int(required_sr)/1000, endpoint_name))

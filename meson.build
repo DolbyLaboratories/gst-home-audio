@@ -1,14 +1,10 @@
 project('gst-home-audio', 'c', 'cpp',
-         version : '0.8.1',
+         version : '0.9.0',
    meson_version : '>= 0.54.0',
- default_options : ['warning_level=1', 'buildtype=debugoptimized'])
+ default_options : ['warning_level=1', 'buildtype=debugoptimized', 'cpp_std=c++17'])
 
 system = host_machine.system()
 version = meson.project_version()
-
-if host_machine.system() != 'linux'
-  error('only linux is currently supported')
-endif
 
 glib_req = '>= 2.40.0'
 gst_req = '>= 1.16.0'
@@ -63,12 +59,14 @@ thread_dep = dependency('threads')
 
 if dl_dep.found()
   core_conf.set('HAVE_DLADDR', 1)
+elif host_system == 'windows'
+  core_conf.set('HAVE_WINAPI', 1)
 endif
 
 # GLib, gobject
 glib_deps = [dependency('glib-2.0', version : glib_req, fallback: ['glib', 'libglib_dep']),
              dependency('gobject-2.0', fallback: ['glib', 'libgobject_dep']),
-             dependency('json-glib-1.0')]
+             dependency('json-glib-1.0', fallback: ['json-glib', 'json_glib_dep'])]
 
 # GStreamer dependencies
 gst_dep = dependency('gstreamer-1.0', version : gst_req,
@@ -77,14 +75,15 @@ gst_base_dep = dependency('gstreamer-base-1.0', version : gst_req,
   fallback : ['gstreamer', 'gst_base_dep'])
 gst_controller_dep = dependency('gstreamer-controller-1.0', version : gst_req,
   fallback : ['gstreamer', 'gst_controller_dep'])
-gst_audio_dep = dependency('gstreamer-audio-1.0', version : gst_req,
-  fallback : ['gstreamer', 'gst_audio_dep'])
-gst_video_dep = dependency('gstreamer-video-1.0', version : gst_req,
-  fallback : ['gstreamer', 'gst_video_dep'])
 gst_check_dep = dependency('gstreamer-check-1.0', version : gst_req,
+  required : get_option('tests'),
   fallback : ['gstreamer', 'gst_check_dep'])
+gst_audio_dep = dependency('gstreamer-audio-1.0', version : gst_req,
+  fallback : ['gst-plugins-base', 'audio_dep'])
+gst_video_dep = dependency('gstreamer-video-1.0', version : gst_req,
+  fallback : ['gst-plugins-base', 'video_dep'])
 gst_pbutils_dep = dependency('gstreamer-pbutils-1.0', version : gst_req,
-  fallback: ['gstreamer', 'gst_pbutils_dep'])
+  fallback: ['gst-plugins-base', 'pbutils_dep'])
 
 pkgconfig = import('pkgconfig')
 plugins_install_dir = '@0@/gstreamer-1.0'.format(get_option('libdir'))
@@ -96,6 +95,7 @@ gst_plugins_dlb_build_dir = meson.current_build_dir()
 # subprojects
 dlb_audio_parser_proj = subproject('dlb_audio_parser', version: '>= 1.0.0', required : false)
 dlb_buffer_proj = subproject('dlb_buffer', required : false)
+dlb_flexr_proj = subproject('dlb_flexr', version : '0.1.0', required : false)
 dlb_oar_proj = subproject('dlb_oar', version : '2.5.0', required : false)
 dlb_evo_proj = subproject('dlb_evo', version : '1.3', required : false)
 dlb_udc_proj = subproject('dlb_udc', version : '4.10.0', required : false)
@@ -104,6 +104,7 @@ dlb_dap_proj = subproject('dlb_dap', version : '2.9.0.2', required : false)
 proj_map = {
   'dlb_audio_parser': {'proj': dlb_audio_parser_proj, 'dep': []},
   'dlb_buffer': {'proj': dlb_buffer_proj, 'dep': []},
+  'dlb_flexr': {'proj': dlb_flexr_proj, 'dep': []},
   'dlb_oar': {'proj': dlb_oar_proj, 'dep': []},
   'dlb_evo': {'proj': dlb_evo_proj, 'dep': []},
   'dlb_udc': {'proj': dlb_udc_proj, 'dep': []},
@@ -132,6 +133,7 @@ endforeach
 
 dlb_audio_parser_dep = proj_map.get('dlb_audio_parser').get('dep')
 dlb_buffer_dep = proj_map.get('dlb_buffer').get('dep')
+dlb_flexr_dep = proj_map.get('dlb_flexr').get('dep')
 dlb_oar_dep = proj_map.get('dlb_oar').get('dep')
 dlb_evo_dep = proj_map.get('dlb_evo').get('dep')
 dlb_udc_dep = proj_map.get('dlb_udc').get('dep')
@@ -139,12 +141,9 @@ dlb_dap_dep = proj_map.get('dlb_dap').get('dep')
 
 subdir('libs')
 subdir('plugins')
-subdir('tests')
 subdir('integration')
+subdir('tests')
+subdir('scripts')
 
 # Use core_conf after all subdirs have set values
 configure_file(input: 'config.h.in', output : 'config.h', configuration : core_conf)
-
-# Add distro script helper
-subproj_action = get_option('distsubproj')
-meson.add_dist_script('scripts/dist_script.sh', meson.source_root(), subproj_action)

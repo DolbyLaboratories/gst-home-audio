@@ -9,7 +9,6 @@ dlb_audio_lib = library('gstdlbaudio', dlb_audio_sources,
                c_args : gst_plugins_dlb_args,
          dependencies : glib_deps + [gst_base_dep, gst_audio_dep],
               install : true,
-          install_dir : plugins_install_dir,
 )
 
 dlb_audio_dep = declare_dependency(

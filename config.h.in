@@ -1,7 +1,7 @@
 /*******************************************************************************
 
  * Dolby Home Audio GStreamer Plugins
- * Copyright (C) 2020, Dolby Laboratories
+ * Copyright (C) 2020-2021, Dolby Laboratories
 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -31,9 +31,16 @@
 
 #mesondefine HAVE_DLADDR
 
+#mesondefine HAVE_WINAPI
+
 #mesondefine DLB_AUDIO_PARSER_OPEN_DYNLIB
 #ifdef DLB_AUDIO_PARSER_OPEN_DYNLIB
 OPEN_DYNLIB_FUN(dlb_audio_parser)
+#endif
+
+#mesondefine DLB_FLEXR_OPEN_DYNLIB
+#ifdef DLB_FLEXR_OPEN_DYNLIB
+OPEN_DYNLIB_FUN(dlb_flexr)
 #endif
 
 #mesondefine DLB_DAP_OPEN_DYNLIB
