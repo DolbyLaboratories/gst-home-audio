@@ -38,7 +38,8 @@ typedef struct dlb_dap_global_settings_s
   gboolean use_serialized_settings;
   gboolean virtualizer_enable;
   gboolean override_virtualizer_settings;
-  GString  *profile;
+  /* call g_free () for profile to free */
+  gchar  *profile;
 } dlb_dap_global_settings;
 
 GType    dlb_dap_global_settings_get_type      (void);

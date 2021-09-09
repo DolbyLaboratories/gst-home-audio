@@ -23,6 +23,7 @@
  */
 typedef enum {
     DLB_AUDIO_PARSER_TYPE_AC3,
+    DLB_AUDIO_PARSER_TYPE_MAT,
     DLB_AUDIO_PARSER_TYPE_DUMMY
 }dlb_audio_parser_type;
 
@@ -42,14 +43,14 @@ typedef enum {
  * @brief Sample rate.
  */
 typedef enum {
-    SAMPLE_RATE_ERROR    = 0,     //!< SAMPLE_RATE_ERROR
-    SAMPLE_RATE_32kHz    = 32000, //!< SAMPLE_RATE_32kHz
-    SAMPLE_RATE_44_1kHz  = 44100, //!< SAMPLE_RATE_44_1kHz
-    SAMPLE_RATE_48kHz    = 48000, //!< SAMPLE_RATE_48kHz
-    SAMPLE_RATE_88_2kHz  = 88200, //!< SAMPLE_RATE_88_2kHz
-    SAMPLE_RATE_96kHz    = 96000, //!< SAMPLE_RATE_96kHz
-    SAMPLE_RATE_176_4kHz = 176400,//!< SAMPLE_RATE_176_4kHz
-    SAMPLE_RATE_192kHz   = 192000 //!< SAMPLE_RATE_192kHz
+    SAMPLE_RATE_ERROR      = 0,     //!< SAMPLE_RATE_ERROR
+    SAMPLE_RATE_32kHz      = 32000, //!< SAMPLE_RATE_32kHz
+    SAMPLE_RATE_44_1kHz    = 44100, //!< SAMPLE_RATE_44_1kHz
+    SAMPLE_RATE_48kHz      = 48000, //!< SAMPLE_RATE_48kHz
+    SAMPLE_RATE_88_2kHz    = 88200, //!< SAMPLE_RATE_88_2kHz
+    SAMPLE_RATE_96kHz      = 96000, //!< SAMPLE_RATE_96kHz
+    SAMPLE_RATE_176_4kHz   = 176400,//!< SAMPLE_RATE_176_4kHz
+    SAMPLE_RATE_192kHz     = 192000 //!< SAMPLE_RATE_192kHz
 } dlb_audio_parser_sample_rate;
 
 /**

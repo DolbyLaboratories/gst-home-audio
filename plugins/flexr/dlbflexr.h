@@ -62,6 +62,8 @@ struct _DlbFlexr {
 
   gboolean active_channels_enable;
   guint64 active_channels_mask;
+
+  GList *flushing_streams;
 };
 
 struct _DlbFlexrClass {
@@ -86,6 +88,8 @@ struct _DlbFlexrPad {
 
   /*< private >*/
   GHashTable *props_set;
+
+  dlb_flexr_input_format fmt;
   dlb_flexr_stream_handle stream;
   dlb_flexr_interp_mode interp;
 };

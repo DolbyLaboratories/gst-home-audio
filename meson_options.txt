@@ -5,6 +5,6 @@ option('oar', type : 'feature', value : 'enabled', description : 'Audio Object R
 option('dap', type : 'feature', value : 'enabled', description : 'Audio Processing.', yield : true)
 option('meta', type : 'feature', value : 'enabled', description : 'Metadata core library.', yield : true)
 option('utils', type : 'feature', value : 'enabled', description : 'Utils core library.', yield : true)
-option('tests', type : 'feature', value : 'enabled', description : 'Elements unit tests.', yield : true)
+option('tests', type : 'feature', value : 'auto', description : 'Elements unit tests.', yield : true)
 option('typefind', type : 'feature', value : 'enabled', description : 'Tyepfind element for Dolby formats.', yield : true)
 option('distsubproj', type : 'combo', choices : ['none', 'export', 'strip'], value : 'none', description : 'Action to be performed on subprojects when creating dist package')

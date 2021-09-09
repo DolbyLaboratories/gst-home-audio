@@ -607,10 +607,14 @@ dlb_dap_init (DlbDap * dap)
   gst_base_transform_set_gap_aware (trans, TRUE);
 
   g_mutex_init (&dap->lock);
+
   gst_audio_info_init (&dap->ininfo);
   gst_audio_info_init (&dap->outinfo);
-  dap->adapter = gst_adapter_new ();
 
+  dlb_dap_virtualizer_settings_init (&dap->virt_conf);
+  dlb_dap_profile_settings_init (&dap->profile);
+
+  dap->adapter = gst_adapter_new ();
   dap->transform_blocks = 0;
   dap->inbufsz = 0;
   dap->outbufsz = 0;
@@ -621,11 +625,9 @@ dlb_dap_init (DlbDap * dap)
   dap->discard_latency = FALSE;
   dap->force_order = FALSE;
 
-  dlb_dap_virtualizer_settings_init (&dap->virt_conf);
-  dlb_dap_profile_settings_init (&dap->profile);
-
   dap->serialized_config = NULL;
   dap->json_config_path = NULL;
+  dap->global_conf.profile = NULL;
 }
 
 static void
@@ -717,6 +719,9 @@ dlb_dap_get_config_from_json (DlbDap * dap)
   gint virtualizer_enable = 0;
 
   GST_DEBUG_OBJECT (dap, "Parsing config from %s", dap->json_config_path);
+
+  g_free (dap->global_conf.profile);
+  dap->global_conf.profile = NULL;
 
   dlb_dap_json_parse_config (dap->json_config_path, &dap->global_conf,
       &dap->virt_conf, &dap->gains, &dap->profile, &error);
@@ -1043,6 +1048,7 @@ dlb_dap_finalize (GObject * object)
 
   g_free (dap->json_config_path);
   g_free (dap->serialized_config);
+  g_free (dap->global_conf.profile);
   g_mutex_clear (&dap->lock);
   g_object_unref (dap->adapter);
 
@@ -1394,8 +1400,6 @@ dlb_dap_start (GstBaseTransform * trans)
 {
   DlbDap *dap = DLB_DAP (trans);
 
-  dap->prefill = 0;
-
   if (dap->json_config_path)
     dlb_dap_get_config_from_json (dap);
 
@@ -1408,6 +1412,25 @@ dlb_dap_stop (GstBaseTransform * trans)
   DlbDap *dap = DLB_DAP (trans);
 
   dlb_dap_close (dap);
+  gst_adapter_clear (dap->adapter);
+
+  gst_audio_info_init (&dap->ininfo);
+  gst_audio_info_init (&dap->outinfo);
+
+  g_free (dap->global_conf.profile);
+
+  memset(&dap->infmt, 0, sizeof(dap->infmt));
+  memset(&dap->outfmt, 0, sizeof(dap->outfmt));
+  memset(&dap->global_conf, 0, sizeof(dap->global_conf));
+
+  dap->transform_blocks = 0;
+  dap->inbufsz = 0;
+  dap->outbufsz = 0;
+  dap->latency = 0;
+  dap->prefill = 0;
+  dap->latency_samples = 0;
+  dap->latency_time = GST_CLOCK_TIME_NONE;
+
   return TRUE;
 }
 
@@ -1457,13 +1480,11 @@ dlb_dap_handle_tag_list (DlbDap * dap, GstTagList * taglist)
   gchar *audio_codec = NULL;
   gboolean object_audio = FALSE;
 
-  gst_tag_list_get_string (taglist, "audio-codec", &audio_codec);
-
-  GST_DEBUG_OBJECT (dap, "audio_codec %s, object-audio %d", audio_codec,
-      object_audio);
-
   if (gst_tag_list_get_string (taglist, "audio-codec", &audio_codec)) {
     gst_tag_list_get_boolean (taglist, "object-audio", &object_audio);
+
+    GST_DEBUG_OBJECT (dap, "audio_codec %s, object-audio %d", audio_codec,
+        object_audio);
 
     if (strstr (audio_codec, "E-AC-3") || strstr (audio_codec, "AC-3")) {
       dap->profile.volume_leveler_in_target = -496;
@@ -1477,9 +1498,12 @@ dlb_dap_handle_tag_list (DlbDap * dap, GstTagList * taglist)
     }
 
     dlb_dap_get_input_timing (dap, &timestamp, &offset);
-    timestamp +=
-        gst_util_uint64_scale_int (gst_adapter_available (dap->adapter) /
-        dap->ininfo.bpf, GST_SECOND, dap->ininfo.rate);
+
+    if (dap->ininfo.bpf && dap->ininfo.rate) {
+      timestamp +=
+          gst_util_uint64_scale_int (gst_adapter_available (dap->adapter) /
+          dap->ininfo.bpf, GST_SECOND, dap->ininfo.rate);
+    }
 
     dlb_dap_post_stream_info_message (dap, audio_codec, object_audio,
         dap->profile.surround_decoder_enable, timestamp);
@@ -1499,7 +1523,7 @@ dlb_dap_sink_event (GstBaseTransform * trans, GstEvent * event)
   GST_LOG_OBJECT (dap, "sink_event");
 
   switch (GST_EVENT_TYPE (event)) {
-    case GST_EVENT_FLUSH_START:
+    case GST_EVENT_FLUSH_STOP:
     case GST_EVENT_EOS:
       if (dap->dap_instance)
         dlb_dap_push_drain (dap);

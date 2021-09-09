@@ -102,6 +102,16 @@ void
 dlb_buffer_free (dlb_buffer * buf);
 
 /**
+ * dlb_buffer_map_channels:
+ * @buf: the #dlb_buffer pointer
+ * @data: the #data for mapping
+ *
+ * Maps memory to internal ppdata channel pointers
+ */
+void
+dlb_buffer_map_memory (dlb_buffer * buf, const guint8 * data);
+
+/**
  * dlb_buffer_reorder_channelsL
  * @buf: the #dlb_buffer pointer.
  * @samples: Number of samples in the #dlb_buffer.

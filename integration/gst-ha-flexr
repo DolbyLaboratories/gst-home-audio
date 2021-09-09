@@ -1,6 +1,8 @@
 #!/bin/bash
 
+CALL_DIR=`pwd`
+
 cd "${0%/*}"
 
 export LD_LIBRARY_PATH="`pwd`/../lib:`pwd`/../lib/gstreamer-1.0"
-python3 -m frontend-flexr $@
+python3 -m frontend-flexr -wd $CALL_DIR $@

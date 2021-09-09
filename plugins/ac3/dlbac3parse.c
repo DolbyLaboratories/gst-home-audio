@@ -256,7 +256,7 @@ dlb_ac3_parse_pre_push_frame (GstBaseParse * parse, GstBaseParseFrame * frame)
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  #ifdef DLB_EVO_OPEN_DYNLIB
+  #ifdef DLB_AUDIO_PARSER_OPEN_DYNLIB
   if (dlb_audio_parser_try_open_dynlib())
     return FALSE;
   #endif

@@ -30,10 +30,13 @@
 #define DLB_DAP_PROFILE_SETTINGS_STRING     "profile-settings"
 
 static gpointer
-dlb_dap_global_settings_copy (gpointer src)
+dlb_dap_global_settings_copy (gpointer data)
 {
-  dlb_dap_global_settings *dest = g_slice_dup (dlb_dap_global_settings, src);
-  dest->profile = g_string_new (((dlb_dap_global_settings*)src)->profile->str);
+  dlb_dap_global_settings *dest = g_slice_dup (dlb_dap_global_settings, data);
+  dlb_dap_global_settings *src = (dlb_dap_global_settings *) data;
+
+  dest->profile = g_strdup (src->profile);
+
   return (gpointer)dest;
 }
 
@@ -41,7 +44,7 @@ static void
 dlb_dap_global_settings_free (gpointer boxed)
 {
   if (G_LIKELY (boxed != NULL)) {
-    g_string_free (((dlb_dap_global_settings*)boxed)->profile, TRUE);
+    g_free (((dlb_dap_global_settings *) boxed)->profile);
     g_slice_free (dlb_dap_global_settings, boxed);
   }
 }
@@ -127,7 +130,7 @@ static JsonNode *dlb_dap_global_settings_serialize (gconstpointer boxed)
       global->virtualizer_enable);
   json_object_set_boolean_member (object, "override-virtualizer-settings",
       global->override_virtualizer_settings);
-  json_object_set_string_member (object, "profile", global->profile->str);
+  json_object_set_string_member (object, "profile", global->profile);
 
   json_node_take_object (node, object);
   return node;
@@ -151,7 +154,7 @@ dlb_dap_global_settings_deserialize (JsonNode * node)
       json_object_get_boolean_member (object, "virtualizer-enable");
   global->override_virtualizer_settings =
       json_object_get_boolean_member (object, "override-virtualizer-settings");
-  global->profile = g_string_new (
+  global->profile = g_strdup (
       json_object_get_string_member (object, "profile"));
 
   return global;
@@ -498,7 +501,7 @@ dlb_dap_json_parse_config (const gchar * filename,
     global->override_virtualizer_settings = g->override_virtualizer_settings;
     global->use_serialized_settings = g->use_serialized_settings;
     global->virtualizer_enable = g->virtualizer_enable;
-    global->profile = g_string_new (g->profile->str);
+    global->profile = g_strdup (g->profile);
     g_boxed_free (DLB_DAP_GLOBAL_SETTINGS_TYPE_BOXED, g);
   }
 
@@ -525,10 +528,10 @@ dlb_dap_json_parse_config (const gchar * filename,
   if (profile && json_object_has_member (jsonobj, "profiles")) {
     root = json_object_get_member (jsonobj, "profiles");
     jsonobj = json_node_get_object (root);
-    if (json_object_has_member (jsonobj, global->profile->str)) {
+    if (json_object_has_member (jsonobj, global->profile)) {
       dlb_dap_profile_settings *p;
 
-      root = json_object_get_member (jsonobj, global->profile->str);
+      root = json_object_get_member (jsonobj, global->profile);
       p = json_boxed_deserialize (DLB_DAP_PROFILE_SETTINGS_TYPE_BOXED, root);
 
       *profile = *p;

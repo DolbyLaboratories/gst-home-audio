@@ -144,6 +144,8 @@ dlb_flexr_pad_finalize (GObject * object)
 
   g_hash_table_destroy (flexrpad->props_set);
   g_free (flexrpad->config_path);
+
+  G_OBJECT_CLASS (dlb_flexr_pad_parent_class)->finalize (object);
 }
 
 static void
@@ -188,19 +190,22 @@ enum
 
 #define SRC_CAPS                                                        \
   "audio/x-raw, "                                                       \
-    "format = (string) { "GST_AUDIO_NE (F32)" } ,"                      \
+    "format = (string) {"GST_AUDIO_NE (F32)", "GST_AUDIO_NE (F64)",     \
+                        "GST_AUDIO_NE (S16)", "GST_AUDIO_NE (S32)" }, " \
     "channels = (int) [ 1, 32 ], "                                      \
     "rate = (int) 48000, "                                              \
     "layout = (string) interleaved;"                                    \
 
 #define SINK_CAPS                                                       \
   "audio/x-raw, "                                                       \
-    "format = (string) { "GST_AUDIO_NE (F32)" } ,"                      \
+    "format = (string) {"GST_AUDIO_NE (F32)", "GST_AUDIO_NE (F64)",     \
+                        "GST_AUDIO_NE (S16)", "GST_AUDIO_NE (S32)" }, " \
     "channels = (int) {1, 2, 6, 8 }, "                                  \
     "rate = (int) 48000, "                                              \
     "layout = (string) interleaved; "                                   \
   "audio/x-raw(" DLB_CAPS_FEATURE_META_OBJECT_AUDIO_META "), "          \
-    "format = (string) { "GST_AUDIO_NE (F32)" } ,"                      \
+    "format = (string) {"GST_AUDIO_NE (F32)", "GST_AUDIO_NE (F64)",     \
+                        "GST_AUDIO_NE (S16)", "GST_AUDIO_NE (S32)" }, " \
     "channels = (int) [ 1, 32 ], "                                      \
     "rate = (int) 48000, "                                              \
     "layout = (string) interleaved;"                                    \
@@ -303,6 +308,7 @@ static void
 dlb_flexr_init (DlbFlexr * flexr)
 {
   flexr->flexr_instance = NULL;
+  flexr->flushing_streams = NULL;
   flexr->config_path = NULL;
   flexr->channels = 0;
   flexr->streams = 0;
@@ -317,6 +323,8 @@ dlb_flexr_finalize (GObject * object)
 
   dlb_flexr_close (flexr);
   g_free (flexr->config_path);
+
+  G_OBJECT_CLASS (dlb_flexr_parent_class)->finalize (object);
 }
 
 static gboolean
@@ -349,7 +357,7 @@ dlb_flexr_open (DlbFlexr * flexr)
 
   flexr->channels = dlb_flexr_query_num_outputs (flexr->flexr_instance);
   flexr->latency = dlb_flexr_query_latency (flexr->flexr_instance);
-  flexr->blksize = dlb_flexr_query_block_samples (flexr->flexr_instance);
+  flexr->blksize = dlb_flexr_query_outblk_samples (flexr->flexr_instance);
 
   duration = gst_util_uint64_scale_int_ceil (flexr->blksize, GST_SECOND, 48000);
 
@@ -389,6 +397,9 @@ dlb_flexr_close (DlbFlexr * flexr)
   flexr->flexr_instance = NULL;
   flexr->channels = 0;
   flexr->streams = 0;
+
+  g_list_free (flexr->flushing_streams);
+  flexr->flushing_streams = NULL;
 }
 
 static void
@@ -459,6 +470,26 @@ dlb_flexr_are_all_pads_ready (DlbFlexr * flexr)
   }
 
   return TRUE;
+}
+
+static void
+dlb_flexr_check_flushing_streams (DlbFlexr * flexr)
+{
+  GList *walk, *next;
+
+  for (walk = flexr->flushing_streams; walk; walk = next) {
+    dlb_flexr_stream_handle h = GPOINTER_TO_UINT (walk->data);
+    next = g_list_next (walk);
+
+    if (dlb_flexr_finished (flexr->flexr_instance, h)) {
+      GST_INFO_OBJECT (flexr, "Stream finished flushing, removing");
+      dlb_flexr_rm_stream (flexr->flexr_instance, h);
+
+      flexr->flushing_streams =
+          g_list_delete_link (flexr->flushing_streams, walk);
+      flexr->streams--;
+    }
+  }
 }
 
 static void
@@ -534,10 +565,6 @@ dlb_flexr_set_caps (DlbFlexr * flexr, GstAggregatorPad * aggpad, GstCaps * caps)
       return FALSE;
   }
 
-  /* already initialized */
-  if (pad->stream)
-    return TRUE;
-
   if (!pad->config_path)
     goto path_error;
 
@@ -577,6 +604,16 @@ dlb_flexr_set_caps (DlbFlexr * flexr, GstAggregatorPad * aggpad, GstCaps * caps)
     }
   }
 
+  GST_OBJECT_LOCK (flexr);
+  /* already initialized */
+  if (pad->stream && pad->fmt != fmt) {
+    flexr->flushing_streams =
+        g_list_append (flexr->flushing_streams, GUINT_TO_POINTER (pad->stream));
+    pad->stream = DLB_FLEXR_STREAM_HANDLE_INVALID;
+  }
+
+  dlb_flexr_stream_info_init (&info);
+
   info.serialized_config = (guint8 *) contents;
   info.serialized_config_size = length;
   info.upmix_enable = pad->upmix;
@@ -596,6 +633,8 @@ dlb_flexr_set_caps (DlbFlexr * flexr, GstAggregatorPad * aggpad, GstCaps * caps)
   g_hash_table_remove_all (pad->props_set);
   g_free (contents);
 
+  GST_OBJECT_UNLOCK (flexr);
+
   return TRUE;
 
 path_error:
@@ -604,6 +643,7 @@ path_error:
   return FALSE;
 
 stream_error:
+  GST_OBJECT_UNLOCK (flexr);
   GST_ELEMENT_ERROR (flexr, LIBRARY, INIT, (NULL), ("Failed to add stream"));
   g_free (contents);
   return FALSE;
@@ -634,6 +674,11 @@ dlb_flexr_sink_event (GstAggregator * agg, GstAggregatorPad * aggpad,
       GST_EVENT_TYPE_NAME (event));
 
   switch (GST_EVENT_TYPE (event)) {
+    case GST_EVENT_FLUSH_STOP:
+    case GST_EVENT_EOS:
+      if (flexr->flexr_instance)
+        dlb_flexr_reset (flexr->flexr_instance);
+      break;
     case GST_EVENT_CAPS:
     {
       GstCaps *caps;
@@ -832,6 +877,7 @@ dlb_flexr_aggregate_one_buffer (GstAudioAggregator * aagg,
 
     out = dlb_buffer_new_wrapped (outdata, &srcpad->info, TRUE);
     dlb_flexr_generate_output (flexr->flexr_instance, out, &samples);
+    dlb_flexr_check_flushing_streams (flexr);
 
     dlb_buffer_free (out);
     ret = TRUE;

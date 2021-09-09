@@ -127,3 +127,9 @@ class GstHAFlexrPipeline:
         """Used as callback to stop pipeline if error message is received."""
         print('Error: {}'.format(msg.parse_error()))
         self.kill()
+
+    def debug_pipeline_to_file(self, path):
+        """Saves pipeline graph in .dot file."""
+
+        with open(path, "w") as f:
+            f.write(Gst.debug_bin_to_dot_data(self.pipeline, Gst.DebugGraphDetails.ALL))

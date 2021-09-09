@@ -24,13 +24,13 @@ env = environment()
 
 env.set('GST_PLUGIN_PATH', join_paths(gst_plugins_dlb_build_dir, 'plugins'))
 env.set('GSETTINGS_BACKEND', 'memory')
+env.set('CK_DEFAULT_TIMEOUT', '60')
+env.set('CK_FORK', 'no')
 
 # Skip flexr test on platforms different that x86_64, the config generation
 # tools are only available for this platform. Disable forking on qemu.
 if host_machine.cpu_family() != 'x86_64'
   env.set('GST_CHECKS_IGNORE', 'test_dlb_flexr*')
-  env.set('CK_DEFAULT_TIMEOUT', '60')
-  env.set('CK_FORK', 'no')
 endif
 
 foreach test : tests

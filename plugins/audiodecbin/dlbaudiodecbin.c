@@ -74,6 +74,7 @@ enum
   PROP_DRC_MODE,
   PROP_DRC_CUT,
   PROP_DRC_BOOST,
+  PROP_DMX_ENABLE,
 };
 
 #define CHMASK(ch) (GST_AUDIO_CHANNEL_POSITION_MASK (ch))
@@ -142,6 +143,7 @@ dlb_audio_dec_bin_class_init (DlbAudioDecBinClass * klass)
   g_object_class_override_property (object_class, PROP_DRC_MODE, "drc-mode");
   g_object_class_override_property (object_class, PROP_DRC_CUT, "drc-cut");
   g_object_class_override_property (object_class, PROP_DRC_BOOST, "drc-boost");
+  g_object_class_override_property (object_class, PROP_DMX_ENABLE, "dmx-enable");
 }
 
 static void
@@ -165,6 +167,7 @@ dlb_audio_dec_bin_init (DlbAudioDecBin * decbin)
   decbin->outmode = DLB_AUDIO_DECODER_OUT_MODE_RAW;
   decbin->drcboost = 1.0;
   decbin->drccut = 1.0;
+  decbin->dmxenable = TRUE;
 
   /* create ghost pads for the bin */
   tmpl = gst_static_pad_template_get (&sink_template);
@@ -230,6 +233,9 @@ dlb_audio_dec_bin_set_property (GObject * object, guint prop_id,
     case PROP_DRC_BOOST:
       decbin->drcboost = g_value_get_double (value);
       break;
+    case PROP_DMX_ENABLE:
+      decbin->dmxenable = g_value_get_boolean (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -256,6 +262,9 @@ dlb_audio_dec_bin_get_property (GObject * object, guint prop_id,
       break;
     case PROP_DRC_BOOST:
       g_value_set_double (value, decbin->drcboost);
+      break;
+    case PROP_DMX_ENABLE:
+      g_value_set_boolean (value, decbin->dmxenable);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -347,6 +356,7 @@ reset_mixer (DlbAudioDecBin * decbin)
   g_object_set_property (G_OBJECT (decbin->conv), "mix-matrix", matrix);
   g_object_set (decbin->capsfilter, "caps", NULL, NULL);
 
+  g_value_unset (matrix);
   g_free (matrix);
 }
 
@@ -360,6 +370,7 @@ setup_mixer (DlbAudioDecBin * decbin, const GstCaps * caps)
   guint64 inchmask, outchmask;
   gint channels;
   GValue *matrix;
+  gchar *tmp1, *tmp2;
 
   reset_mixer (decbin);
 
@@ -376,9 +387,10 @@ setup_mixer (DlbAudioDecBin * decbin, const GstCaps * caps)
   get_mixer_config (inchmask, in.channels, &outchmask, &channels);
   gst_audio_channel_positions_from_mask (channels, outchmask, position);
 
-  GST_INFO_OBJECT (decbin, "setting mix matrix from %s to %s",
-      gst_audio_channel_positions_to_string (in.position, in.channels),
-      gst_audio_channel_positions_to_string (position, channels));
+  tmp1 = gst_audio_channel_positions_to_string (in.position, in.channels);
+  tmp2 = gst_audio_channel_positions_to_string (position, channels);
+
+  GST_INFO_OBJECT (decbin, "setting mix matrix from %s to %s", tmp1, tmp2);
 
   matrix = generate_mix_matrix (in.channels, in.position, channels, position);
 
@@ -393,6 +405,8 @@ setup_mixer (DlbAudioDecBin * decbin, const GstCaps * caps)
 
   g_value_unset (matrix);
   g_free (matrix);
+  g_free (tmp1);
+  g_free (tmp2);
 
   return;
 
@@ -417,6 +431,12 @@ dlb_audio_dec_bin_sync_children_properties (DlbAudioDecBin * decbin)
   g_value_init (&val, DLB_TYPE_AUDIO_DECODER_DRC_MODE);
   g_value_set_enum (&val, decbin->drcmode);
   gst_child_proxy_set_property (proxy, "decoder0::drc-mode", &val);
+
+  g_value_unset (&val);
+  g_value_init (&val, G_TYPE_BOOLEAN);
+
+  g_value_set_boolean (&val, decbin->dmxenable);
+  gst_child_proxy_set_property (proxy, "decoder0::dmx-enable", &val);
 
   g_value_unset (&val);
   g_value_init (&val, G_TYPE_DOUBLE);
@@ -488,17 +508,17 @@ dlb_audio_dec_bin_add_decoder_chain (DlbAudioDecBin * decbin)
   const gchar *decoder = NULL;
   const gchar *parser = NULL;
 
-  if (g_strcmp0 (decbin->stream, "audio/x-ac3") ||
-      g_strcmp0 (decbin->stream, "audio/x-eac3")) {
+  if (!g_strcmp0 (decbin->stream, "audio/x-ac3") ||
+      !g_strcmp0 (decbin->stream, "audio/x-eac3")) {
     decoder = "dlbac3dec";
     parser = "dlbac3parse";
-  } else if (g_strcmp0 (decbin->stream, "audio/x-ac4-raw")) {
+  } else if (!g_strcmp0 (decbin->stream, "audio/x-ac4-raw")) {
     decoder = "dlbac4dec";
     parser = "dlbac4parse";
-  } else if (g_strcmp0 (decbin->stream, "audio/x-true-hd")) {
+  } else if (!g_strcmp0 (decbin->stream, "audio/x-true-hd")) {
     decoder = "dlbtruehddec";
     parser = "dlbtruehdparse";
-  } else if (g_strcmp0 (decbin->stream, "audio/x-mat")) {
+  } else if (!g_strcmp0 (decbin->stream, "audio/x-mat")) {
     decoder = "dlbmatdec";
     parser = "dlbmatparse";
   } else {

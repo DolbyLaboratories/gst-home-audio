@@ -67,23 +67,24 @@ GST_START_TEST (test_dlbac3dec_drain_at_eos)
 }
 
 GST_END_TEST
-GST_START_TEST (test_dlbac3dec_broken_data)
+GST_START_TEST (test_dlbac3dec_broken_data_ok)
 {
   GstFlowReturn ret;
   TestFile *file = &file_51_1kHz_ddp;
 
-  GstHarness *h = gst_harness_new_parse ("dlbac3dec");
+  GstHarness *h = gst_harness_new ("dlbac3dec");
   GstHarness *hs =
       gst_harness_new_parse ("filesrc ! dlbac3parse ! breakmydata");
   gchar *filename = g_build_filename (GST_TEST_FILES_PATH, file->name, NULL);
 
   gst_harness_add_src_harness (h, hs, TRUE);
+  /* gst_harness_set (h, "dlbac3dec", "max-errors", -1, NULL); */
   gst_harness_set (hs, "filesrc", "location", filename, NULL);
-  gst_harness_set (hs, "breakmydata", "probability", 0.0001, NULL);
+  gst_harness_set (hs, "breakmydata", "probability", 0.01, NULL);
   g_free (filename);
 
   ret = gst_harness_src_crank_and_push_many (h, 0, file->frame_count);
-  fail_unless_equals_int (ret, GST_FLOW_ERROR);
+  fail_unless_equals_int (ret, GST_FLOW_OK);
 
   gst_harness_teardown (h);
 }
@@ -151,7 +152,7 @@ dlbac3dec_suite (void)
   TCase *tc_general = tcase_create ("general");
 
   tcase_add_test (tc_general, test_dlbac3dec_drain_at_eos);
-  tcase_add_test (tc_general, test_dlbac3dec_broken_data);
+  tcase_add_test (tc_general, test_dlbac3dec_broken_data_ok);
   tcase_add_test (tc_general, test_dlbac3dec_property_drc_cut);
   tcase_add_test (tc_general, test_dlbac3dec_property_drc_boost);
 

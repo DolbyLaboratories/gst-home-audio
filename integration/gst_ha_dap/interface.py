@@ -1,3 +1,7 @@
+import gi
+gi.require_version('Gst', '1.0')
+gi.require_version('GstAudio', '1.0')
+from gi.repository import Gst
 import argparse
 import os
 import json
@@ -5,17 +9,19 @@ from .pipeline import GstHomeAudioPipeline
 from .xml_parse import xml_to_json, get_endpoints
 from .settings import gst_home_audio_settings
 
-VERSION = "0.9.0"
+VERSION_MAJOR  = 0
+VERSION_MINOR  = 9
+VERSION_BUGFIX = 1
 
 PREAMBLE = """
 Dolby Atmos for home audio executable
-Version %s
+Version %d.%d.%d
 
 Supported formats:
     Dolby Digital:      .ac3
-    Dolby Digital Plus: .ec3, .eb3
+    Dolby Digital Plus: .ec3, .eb3 
 
-""" % VERSION
+""" % (VERSION_MAJOR, VERSION_MINOR, VERSION_BUGFIX)
 
 ALLOWED_SPEAKER_NAMES = ["lr", "c", "lfe", "lrs", "lrrs", "lre", "lrse",
                          "lrrse", "lrtm", "lrtf", "lrtr", "sh"]
@@ -101,6 +107,11 @@ def parse_command_line():
     parser = argparse.ArgumentParser(prog='gst-ha-dap',
                                      formatter_class=argparse.RawTextHelpFormatter)
     config_group = parser.add_mutually_exclusive_group()
+    parser.add_argument('-wd',
+                        '--working_dir',
+                        type=str,
+                        help=argparse.SUPPRESS,
+                        required=True)
     parser.add_argument('-i',
                         '--input',
                         help='Input file name.\n'
@@ -147,6 +158,18 @@ def parse_command_line():
                         action='store_true',
                         default=False,
                         help=argparse.SUPPRESS)
+    parser.add_argument('-gd',
+                        '--gst_debug',
+                        help="Number specyfing Gstreamer Debug Level",
+                        type=int,
+                        metavar='<val>',
+                        default=0)
+    parser.add_argument('-pg',
+                        '--pipeline_graph',
+                        help='Defines debug dot file name \n',
+                        type=str,
+                        metavar='<filename>',
+                        default=None)
 
     print(PREAMBLE)
 
@@ -338,7 +361,17 @@ def create_settings(args):
             json_path)
 
 
-def run_pipeline(plugin_path, settings, json_config):
+def gst_debug(level):
+    """Sets Gstreamer debug output
+
+    Args:
+        level : Gstreamer debug level.
+    """
+    if level:
+        Gst.debug_set_active(True)
+        Gst.debug_set_default_threshold(level)
+
+def run_pipeline(plugin_path, settings, json_config, filename):
     """Creates and runs the Gstreamer pipeline.
 
     Args:
@@ -352,6 +385,9 @@ def run_pipeline(plugin_path, settings, json_config):
     pipeline = GstHomeAudioPipeline(plugin_path,
                                     settings,
                                     json_config)
+    if filename:
+        pipeline.debug_pipeline_to_file(filename)
+
     pipeline.run()
 
 

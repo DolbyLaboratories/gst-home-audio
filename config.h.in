@@ -48,11 +48,6 @@ OPEN_DYNLIB_FUN(dlb_flexr)
 OPEN_DYNLIB_FUN(dlb_dap)
 #endif
 
-#mesondefine DLB_EVO_OPEN_DYNLIB
-#ifdef DLB_EVO_OPEN_DYNLIB
-OPEN_DYNLIB_FUN(dlb_evo)
-#endif
-
 #mesondefine DLB_OAR_OPEN_DYNLIB
 #ifdef DLB_OAR_OPEN_DYNLIB
 OPEN_DYNLIB_FUN(dlb_oar)

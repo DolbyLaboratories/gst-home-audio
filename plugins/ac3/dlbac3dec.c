@@ -22,7 +22,6 @@
 #include "config.h"
 #endif
 
-
 #include <gst/gst.h>
 
 #include "dlbac3dec.h"
@@ -32,7 +31,7 @@
 GST_DEBUG_CATEGORY_STATIC (dlb_ac3dec_debug_category);
 #define GST_CAT_DEFAULT dlb_ac3dec_debug_category
 
-#define CHMASK(mask) (DLB_UDC_CHANNEL_MASK (DLB_UDC_CHANNEL_ ## mask))
+#define CHMASK(mask) (DLB_UDC_CHANNEL_MASK (mask))
 
 /* public prototypes */
 static void dlb_ac3dec_set_property (GObject * object,
@@ -47,7 +46,6 @@ static gboolean dlb_ac3dec_set_format (GstAudioDecoder * decoder,
     GstCaps * caps);
 static GstFlowReturn dlb_ac3dec_handle_frame (GstAudioDecoder * decoder,
     GstBuffer * inbuf);
-static void dlb_ac3dec_flush (GstAudioDecoder * dec, gboolean hard);
 static gboolean dlb_ac3dec_sink_event (GstAudioDecoder * dec, GstEvent * event);
 
 /* private prototypes */
@@ -60,8 +58,6 @@ static void evaluate_output_sample_format (DlbAc3Dec * decoder);
 static void convert_dlb_udc_channel_mask_to_gst_pos (gint channel_mask,
     gint channels, GstAudioChannelPosition * pos, gboolean force_order);
 static dlb_udc_output_mode get_udc_output_mode (DlbAudioDecoderOutMode outmode);
-static dlb_udc_data_type
-dlb_ac3dec_convert_format_to_data_type (GstAudioFormat fmt);
 
 enum
 {
@@ -70,8 +66,7 @@ enum
   PROP_DRC_MODE,
   PROP_DRC_CUT,
   PROP_DRC_BOOST,
-  PROP_DRC_SUPPRESS,
-  PROP_DMX_MODE,
+  PROP_DMX_ENABLE,
 };
 
 #define DLB_AC3DEC_SRC_CAPS                                             \
@@ -130,7 +125,6 @@ dlb_ac3dec_class_init (DlbAc3DecClass * klass)
   audio_decoder_class->set_format = GST_DEBUG_FUNCPTR (dlb_ac3dec_set_format);
   audio_decoder_class->handle_frame =
       GST_DEBUG_FUNCPTR (dlb_ac3dec_handle_frame);
-  audio_decoder_class->flush = GST_DEBUG_FUNCPTR (dlb_ac3dec_flush);
   audio_decoder_class->sink_event = GST_DEBUG_FUNCPTR (dlb_ac3dec_sink_event);
 
   /* Setting up pads and setting metadata should be moved to
@@ -150,6 +144,7 @@ dlb_ac3dec_class_init (DlbAc3DecClass * klass)
   g_object_class_override_property (gobject_class, PROP_DRC_MODE, "drc-mode");
   g_object_class_override_property (gobject_class, PROP_DRC_CUT, "drc-cut");
   g_object_class_override_property (gobject_class, PROP_DRC_BOOST, "drc-boost");
+  g_object_class_override_property (gobject_class, PROP_DMX_ENABLE, "dmx-enable");
 
   gst_tag_register ("object-audio", GST_TAG_FLAG_META,
       G_TYPE_BOOLEAN, "object-audio tag",
@@ -164,8 +159,8 @@ dlb_ac3dec_init (DlbAc3Dec * ac3dec)
   ac3dec->drc_mode = DLB_AUDIO_DECODER_DRC_MODE_DEFAULT;
   ac3dec->bps = 4;
   ac3dec->metadata_buffer = g_malloc (DLB_UDC_MAX_MD_SIZE);
-  ac3dec->cache_buffer = NULL;
   ac3dec->tags = gst_tag_list_new_empty ();
+  ac3dec->dmx_enable = TRUE;
 
   dlb_udc_drc_settings_init (&ac3dec->drc);
 
@@ -201,6 +196,10 @@ dlb_ac3dec_set_property (GObject * object, guint property_id,
     case PROP_DRC_BOOST:
       ac3dec->drc.boost = g_value_get_double (value);
       update_dynamic = TRUE;
+      break;
+    case PROP_DMX_ENABLE:
+      ac3dec->dmx_enable = g_value_get_boolean (value);
+      update_static = TRUE;
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -239,6 +238,9 @@ dlb_ac3dec_get_property (GObject * object,
     case PROP_DRC_BOOST:
       g_value_set_double (value, ac3dec->drc.boost);
       break;
+    case PROP_DMX_ENABLE:
+      g_value_set_boolean (value, ac3dec->dmx_enable);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       break;
@@ -264,6 +266,8 @@ dlb_ac3dec_finalize (GObject * object)
   ac3dec->metadata_buffer = NULL;
 
   gst_tag_list_unref (ac3dec->tags);
+
+  G_OBJECT_CLASS (dlb_ac3dec_parent_class)->finalize (object);
 }
 
 static dlb_udc_output_mode
@@ -365,41 +369,20 @@ convert_dlb_udc_channel_mask_to_gst_pos (gint channel_mask, gint channels,
     gst_audio_channel_positions_to_valid_order (pos, channels);
 }
 
-static dlb_udc_data_type
-dlb_ac3dec_convert_format_to_data_type (GstAudioFormat fmt)
-{
-  switch (fmt) {
-    default:
-    case GST_AUDIO_FORMAT_F32:
-      return DLB_UDC_DATA_TYPE_FLOAT;
-      break;
-    case GST_AUDIO_FORMAT_F64:
-      return DLB_UDC_DATA_TYPE_DOUBLE;
-      break;
-    case GST_AUDIO_FORMAT_S32:
-      return DLB_UDC_DATA_TYPE_INT;
-      break;
-    case GST_AUDIO_FORMAT_S16:
-      return DLB_UDC_DATA_TYPE_SHORT;
-      break;
-    case GST_AUDIO_FORMAT_S8:
-      return DLB_UDC_DATA_TYPE_OCTET_UNPACKED;
-      break;
-  }
-}
-
 static gboolean
 dlb_ac3dec_start (GstAudioDecoder * decoder)
 {
   DlbAc3Dec *ac3dec = DLB_AC3DEC (decoder);
   GstAllocationParams alloc_params;
 
+  GstAudioInfo audio_info;
+  dlb_udc_init_info init_info;
+
   GST_DEBUG_OBJECT (ac3dec, "start");
 
   /* Base on src pad peer caps evaluates sample format and size */
   evaluate_output_sample_format (ac3dec);
 
-  ac3dec->channels = 0;
   memset (&ac3dec->info, 0, sizeof (ac3dec->info));
   memset (&ac3dec->gstpos, 0, sizeof (ac3dec->gstpos));
   memset (&ac3dec->dlbpos, 0, sizeof (ac3dec->dlbpos));
@@ -408,19 +391,36 @@ dlb_ac3dec_start (GstAudioDecoder * decoder)
   gst_audio_decoder_get_allocator (&ac3dec->base_ac3dec, &ac3dec->alloc_dec,
       &alloc_params);
   ac3dec->alloc_params = gst_allocation_params_copy (&alloc_params);
-  ac3dec->alloc_params->align = DLB_UDC_MEMORY_ALIGNMENT - 1;
+  ac3dec->alloc_params->align = DLB_UDC_OUTBUF_MEMORY_ALIGNMENT - 1;
 
-  ac3dec->mode = get_udc_output_mode (ac3dec->outmode);
-  ac3dec->udc = dlb_udc_new (ac3dec->mode,
-      dlb_ac3dec_convert_format_to_data_type (ac3dec->output_format));
+  init_info.outmode = get_udc_output_mode (ac3dec->outmode);
+  init_info.dmx_enable = ac3dec->dmx_enable;
 
-  if (!ac3dec->udc) {
-    GST_ELEMENT_ERROR (ac3dec, LIBRARY, INIT, (NULL), ("Failed to open UDC"));
-    return FALSE;
-  }
+  ac3dec->udc = dlb_udc_new (&init_info);
+  if (!ac3dec->udc)
+    goto lib_error;
+
+  ac3dec->max_output_blocksz = dlb_udc_query_max_outbuf_size (ac3dec->udc);
+  ac3dec->max_channels = dlb_udc_query_max_output_channels (init_info.outmode);
+
+  gst_audio_info_init (&audio_info);
+  gst_audio_info_set_format (&audio_info, ac3dec->output_format, 48000,
+      ac3dec->max_channels, NULL);
+
+  ac3dec->outbuf = dlb_buffer_new (&audio_info);
+  if (!ac3dec->outbuf)
+    goto buf_error;
 
   update_dynamic_params (ac3dec);
   return TRUE;
+
+buf_error:
+  dlb_udc_free (ac3dec->udc);
+  ac3dec->udc = NULL;
+
+lib_error:
+  GST_ELEMENT_ERROR (ac3dec, LIBRARY, INIT, (NULL), ("Failed to open UDC"));
+  return FALSE;
 }
 
 static gboolean
@@ -433,6 +433,15 @@ dlb_ac3dec_stop (GstAudioDecoder * decoder)
 
   if (!ac3dec->udc)
     return TRUE;
+
+  ac3dec->max_output_blocksz = 0;
+  ac3dec->max_channels = 0;
+
+  gst_allocation_params_free (ac3dec->alloc_params);
+  ac3dec->alloc_params = NULL;
+
+  dlb_buffer_free (ac3dec->outbuf);
+  ac3dec->outbuf = NULL;
 
   dlb_udc_free (ac3dec->udc);
   ac3dec->udc = NULL;
@@ -466,15 +475,13 @@ dlb_ac3dec_handle_frame (GstAudioDecoder * decoder, GstBuffer * inbuf)
   GstFlowReturn ret = GST_FLOW_OK;
   GstMapInfo inmap, outmap;
   GstBuffer *outbuf;
+
   dlb_udc_audio_info info;
   gint status;
-  gsize framesz = 0, bpf = 0, info_offset = 0;
-  gboolean reneg = FALSE, update = FALSE;
-  const gsize outsize =
-      DLB_UDC_SAMPLES_PER_BLOCK * DLB_UDC_MAX_RAW_OUTPUT_CHANNELS * ac3dec->bps;
+  gsize blocksz = 0;
+  gboolean update = FALSE;
 
   if (G_UNLIKELY (!inbuf)) {
-    dlb_ac3dec_flush (decoder, FALSE);
     return GST_FLOW_OK;
   }
 
@@ -482,153 +489,92 @@ dlb_ac3dec_handle_frame (GstAudioDecoder * decoder, GstBuffer * inbuf)
   GST_LOG_OBJECT (decoder, "handling input buffer %" GST_PTR_FORMAT, inbuf);
   gst_buffer_map (inbuf, &inmap, GST_MAP_READ);
 
-  /* process frame */
-  status = dlb_udc_push_frame (ac3dec->udc, (gchar *) inmap.data, inmap.size);
-  if (status) {
-    GST_WARNING_OBJECT (ac3dec, "Push frame returned error %d", status);
+  status =
+      dlb_udc_push_timeslice (ac3dec->udc, (gchar *) inmap.data, inmap.size);
+  if (status)
+    goto push_error;
 
-    ret = GST_FLOW_ERROR;
-    goto cleanup;
-  }
-
-  for (int i = 0; i < DLB_UDC_MAX_BLOCKS_PER_FRAME; ++i) {
-    dlb_evo_payload meta = {
-      .data = ac3dec->metadata_buffer,
-      .size = DLB_UDC_MAX_MD_SIZE,
-      .offset = 0,
-      .id = 0
-    };
+  for (gint i = 0; i < DLB_UDC_MAX_BLOCKS_PER_FRAME; ++i) {
+    dlb_evo_payload md = {.data = ac3dec->metadata_buffer, };
 
     /* allocate output buffer */
     outbuf =
-        gst_buffer_new_allocate (ac3dec->alloc_dec, outsize,
+        gst_buffer_new_allocate (ac3dec->alloc_dec, ac3dec->max_output_blocksz,
         ac3dec->alloc_params);
 
     gst_buffer_map (outbuf, &outmap, GST_MAP_READWRITE);
+    dlb_buffer_map_memory (ac3dec->outbuf, outmap.data);
 
     status =
-        dlb_udc_process_frame (ac3dec->udc, outmap.data, &framesz, &meta, &info,
-        &info_offset);
-    if (status) {
-      GST_ERROR_OBJECT (ac3dec, "Process frame returned error %d", status);
+        dlb_udc_process_block (ac3dec->udc, ac3dec->outbuf, &blocksz, &md,
+        &info);
+    if (G_UNLIKELY (status))
+      goto decode_error;
 
-      ret = GST_FLOW_ERROR;
-      goto cleanup;
-    }
-
-    if (G_UNLIKELY (!framesz)) {
+    if (G_UNLIKELY (!blocksz)) {
       gst_buffer_unref (outbuf);
       goto cleanup;
     }
 
-    bpf = ac3dec->bps * info.channels;
-
-    if (meta.id == DLB_EVODEC_METADATA_ID_OAMD &&
-        meta.offset < DLB_UDC_SAMPLES_PER_BLOCK) {
-      dlb_audio_object_meta_add (outbuf, meta.data, meta.size, meta.offset,
-          bpf);
+    if (md.id == DLB_EVODEC_METADATA_ID_OAMD) {
+      gsize bpf = ac3dec->bps * info.channels;
+      dlb_audio_object_meta_add (outbuf, md.data, md.size, md.offset, bpf);
     }
 
     update = memcmp (&info, &ac3dec->info, sizeof (info));
-
     if (update) {
-      if (info_offset) {
-        gsize cachesz = framesz - info_offset;
-
-        ac3dec->cache_buffer =
-            gst_buffer_new_allocate (ac3dec->alloc_dec, cachesz,
-            ac3dec->alloc_params);
-
-        gst_buffer_fill (ac3dec->cache_buffer, 0, outmap.data + info_offset,
-            cachesz);
-
-        /* cache metadata */
-        if (meta.id == DLB_EVODEC_METADATA_ID_OAMD) {
-          meta.offset = 0;
-          dlb_audio_object_meta_add (ac3dec->cache_buffer, meta.data, meta.size,
-              meta.offset, bpf);
-        }
-
-        if (!ac3dec->info.object_audio) {
-          gst_audio_reorder_channels (outmap.data, info_offset,
-              ac3dec->output_format, ac3dec->channels, ac3dec->dlbpos,
-              ac3dec->gstpos);
-        }
-
-        gst_buffer_resize (outbuf, 0, info_offset);
-
-        GST_DEBUG_OBJECT (decoder,
-            "Switching: sending residue buffer %" GST_PTR_FORMAT, outbuf);
-
-        reneg = TRUE;
-        goto finish_subframe;
-      } else {
-        renegotiate (ac3dec, &info);
-      }
+      renegotiate (ac3dec, &info);
     }
 
     if (!ac3dec->info.object_audio) {
-      gst_audio_reorder_channels (outmap.data, framesz, ac3dec->output_format,
-          ac3dec->channels, ac3dec->dlbpos, ac3dec->gstpos);
+      gst_audio_reorder_channels (outmap.data, blocksz, ac3dec->output_format,
+          ac3dec->info.channels, ac3dec->dlbpos, ac3dec->gstpos);
     }
 
-    gst_buffer_resize (outbuf, 0, framesz);
+    gst_buffer_resize (outbuf, 0, blocksz);
 
-    if (G_UNLIKELY (ac3dec->cache_buffer)) {
-      GST_DEBUG_OBJECT (ac3dec, "Sending cached buffer");
-      ret = gst_audio_decoder_finish_subframe (decoder, ac3dec->cache_buffer);
-      if (ret != GST_FLOW_OK) {
-        GST_ERROR_OBJECT (ac3dec, "Finish subframe for cache buffer returned"
-            " error %d", ret);
-        goto cleanup;
-      }
-
-      ac3dec->cache_buffer = NULL;
-    }
-
-  finish_subframe:
     GST_LOG_OBJECT (decoder, "finish subframe %d", i);
     gst_buffer_unmap (outbuf, &outmap);
     ret = gst_audio_decoder_finish_subframe (decoder, outbuf);
-    if (ret != GST_FLOW_OK) {
+
+    if (ret == GST_FLOW_ERROR) {
       GST_ERROR_OBJECT (ac3dec, "Finish subframe returned error %d", ret);
       goto cleanup;
-    }
-
-    if (G_UNLIKELY (reneg)) {
-      renegotiate (ac3dec, &info);
-      reneg = FALSE;
     }
   }
 
 cleanup:
-  gst_buffer_unmap (inbuf, &inmap);
+  {
+    gst_buffer_unmap (inbuf, &inmap);
 
-  if (ret == GST_FLOW_OK && framesz) {
-    GST_LOG_OBJECT (decoder, "finish frame");
-    ret = gst_audio_decoder_finish_subframe (decoder, NULL);
+    if (ret != GST_FLOW_ERROR && blocksz) {
+      GST_LOG_OBJECT (decoder, "finish frame");
+      ret = gst_audio_decoder_finish_subframe (decoder, NULL);
+    }
 
-    if (G_UNLIKELY (reneg))
-      renegotiate (ac3dec, &info);
+    return ret;
   }
 
-  return ret;
-}
+push_error:
+  {
+    gst_buffer_unmap (inbuf, &inmap);
 
-void
-dlb_ac3dec_flush (GstAudioDecoder * dec, gboolean hard)
-{
-  DlbAc3Dec *ac3dec = DLB_AC3DEC (dec);
-  GstBuffer *empty = gst_buffer_new ();
+    GST_AUDIO_DECODER_ERROR (ac3dec, 1, STREAM, DECODE, (NULL),
+        ("push timeslice error: %d", status), ret);
 
-  GST_DEBUG_OBJECT (ac3dec, "Flushing decoder");
+    return ret;
+  }
 
-  dlb_ac3dec_handle_frame (dec, empty);
-  gst_buffer_unref (empty);
+decode_error:
+  {
+    gst_buffer_unmap (inbuf, &inmap);
+    gst_buffer_unmap (outbuf, &outmap);
+    gst_buffer_unref (outbuf);
 
-  if (hard) {
-    GST_DEBUG_OBJECT (ac3dec, "Flushing decoder, hard");
-    restart (ac3dec);
+    GST_AUDIO_DECODER_ERROR (ac3dec, 1, STREAM, DECODE, (NULL),
+        ("process block error: %d", status), ret);
+
+    return ret;
   }
 }
 
@@ -671,8 +617,8 @@ renegotiate (DlbAc3Dec * ac3dec, const dlb_udc_audio_info * info)
 
   if (!info->object_audio) {
     GST_DEBUG_OBJECT (ac3dec,
-        "Channel-based decoding, channel-mask %#x, channels = %d",
-        info->channel_mask, info->channels);
+        "Channel-based decoding, channel-mask %" G_GUINT64_FORMAT
+        ", channels = %d", info->channel_mask, info->channels);
 
     for (gint i = 0; i < DLB_UDC_MAX_RAW_OUTPUT_CHANNELS; ++i) {
       ac3dec->dlbpos[i] = GST_AUDIO_CHANNEL_POSITION_INVALID;
@@ -684,10 +630,20 @@ renegotiate (DlbAc3Dec * ac3dec, const dlb_udc_audio_info * info)
     convert_dlb_udc_channel_mask_to_gst_pos (info->channel_mask,
         info->channels, ac3dec->gstpos, TRUE);
 
-    GST_DEBUG_OBJECT (ac3dec,
-        "Number of channels %d, gstpos = %s, dlbpos = %s ", info->channels,
-        gst_audio_channel_positions_to_string (ac3dec->gstpos, info->channels),
-        gst_audio_channel_positions_to_string (ac3dec->dlbpos, info->channels));
+    {
+      gchar *gstpos, *dlbpos;
+      gstpos =
+          gst_audio_channel_positions_to_string (ac3dec->gstpos,
+          info->channels);
+      dlbpos =
+          gst_audio_channel_positions_to_string (ac3dec->dlbpos,
+          info->channels);
+
+      GST_DEBUG_OBJECT (ac3dec, "gstpos = %s, dlbpos = %s ", gstpos, dlbpos);
+
+      g_free (gstpos);
+      g_free (dlbpos);
+    }
   } else {
     GST_DEBUG_OBJECT (ac3dec, "Atmos decoding");
 
@@ -722,7 +678,6 @@ renegotiate (DlbAc3Dec * ac3dec, const dlb_udc_audio_info * info)
   gst_pad_push_event (GST_AUDIO_DECODER (ac3dec)->srcpad, event);
 
   ac3dec->info = *info;
-  ac3dec->channels = info->channels;
   gst_caps_unref (caps);
 
   return TRUE;
@@ -822,11 +777,6 @@ plugin_init (GstPlugin * plugin)
 {
 #ifdef DLB_UDC_OPEN_DYNLIB
   if (dlb_udc_try_open_dynlib ())
-    return FALSE;
-#endif
-
-#ifdef DLB_EVO_OPEN_DYNLIB
-  if (dlb_evo_try_open_dynlib ())
     return FALSE;
 #endif
 

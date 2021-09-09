@@ -97,12 +97,18 @@ dlb_audio_decoder_class_init (DlbAudioDecoderInterface * iface)
       g_param_spec_double ("drc-boost", "DRC boost",
           "Set the dynamic range control boost scale factor, 1.0 = max",
           0.0, 1.0, 1.0, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_interface_install_property (iface,
+      g_param_spec_boolean ("dmx-enable", "dwnmixer enable",
+          "Enable standard downmixer, the channel based output of decoder is "
+          "limited to standard channel layouts: 2.0, 5.1 and 7.1",
+          TRUE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 }
 
 GType
 dlb_audio_decoder_get_type (void)
 {
-  static volatile gsize type = 0;
+  static gsize type = 0;
   if (g_once_init_enter (&type)) {
     GType tmp;
     static const GTypeInfo info = {
@@ -254,5 +260,23 @@ dlb_audio_decoder_get_drc_boost (DlbAudioDecoder * decoder)
 
   g_return_val_if_fail (DLB_IS_AUDIO_DECODER (decoder), 0.0);
   g_object_get (decoder, "drc-boost", &val, NULL);
+  return val;
+}
+
+
+void
+dlb_audio_decoder_set_dmx_enable (DlbAudioDecoder *decoder, gboolean val)
+{
+  g_return_if_fail (DLB_IS_AUDIO_DECODER (decoder));
+  g_object_set (decoder, "dmx-enable", val, NULL);
+}
+
+gboolean
+dlb_audio_decoder_get_dmx_enable (DlbAudioDecoder *decoder)
+{
+  gboolean val;
+
+  g_return_val_if_fail (DLB_IS_AUDIO_DECODER (decoder), 0.0);
+  g_object_get (decoder, "dmx-enable", &val, NULL);
   return val;
 }

@@ -41,10 +41,11 @@ typedef struct dlb_flexr_dispatch_table_s
 
   int (*generate_output) (dlb_flexr * self, dlb_buffer * outbuf, int *samples);
 
+  void (*reset) (dlb_flexr *self);
 
   int (*query_num_outputs) (const dlb_flexr * self);
 
-  int (*query_block_samples) (const dlb_flexr * self);
+  int (*query_outblk_samples) (const dlb_flexr * self);
 
   int (*query_max_samples) (const dlb_flexr * self);
 
@@ -54,6 +55,8 @@ typedef struct dlb_flexr_dispatch_table_s
 
   int (*query_pushed_samples) (const dlb_flexr * self,
       dlb_flexr_stream_handle stream);
+
+  int (*finished) (const dlb_flexr *self, dlb_flexr_stream_handle stream);
 
   void (*set_render_config) (dlb_flexr * self,
       dlb_flexr_stream_handle stream,
@@ -79,24 +82,27 @@ dlb_flexr_try_open_dynlib (void)
   dispatch_table.free = get_proc_address (libflexr, "dlb_flexr_free");
   dispatch_table.add_stream =
       get_proc_address (libflexr, "dlb_flexr_add_stream");
-  dispatch_table.rm_stream = get_proc_address (libflexr, "dlb_flexr_rm_stream");
+  dispatch_table.rm_stream =
+      get_proc_address (libflexr, "dlb_flexr_rm_stream");
   dispatch_table.push_stream =
       get_proc_address (libflexr, "dlb_flexr_push_stream");
   dispatch_table.generate_output =
       get_proc_address (libflexr, "dlb_flexr_generate_output");
+  dispatch_table.reset =
+      get_proc_address (libflexr, "dlb_flexr_reset");
 
   dispatch_table.query_num_outputs =
       get_proc_address (libflexr, "dlb_flexr_query_num_outputs");
-  dispatch_table.query_block_samples =
-      get_proc_address (libflexr, "dlb_flexr_query_block_samples");
-  dispatch_table.query_max_samples =
-      get_proc_address (libflexr, "dlb_flexr_query_max_samples");
+  dispatch_table.query_outblk_samples =
+      get_proc_address (libflexr, "dlb_flexr_query_outblk_samples");
   dispatch_table.query_latency =
       get_proc_address (libflexr, "dlb_flexr_query_latency");
   dispatch_table.stream_info_init =
       get_proc_address (libflexr, "dlb_flexr_stream_info_init");
   dispatch_table.query_pushed_samples =
       get_proc_address (libflexr, "dlb_flexr_query_pushed_samples");
+  dispatch_table.finished =
+      get_proc_address (libflexr, "dlb_flexr_finished");
   dispatch_table.set_render_config =
       get_proc_address (libflexr, "dlb_flexr_set_render_config");
   dispatch_table.set_volume =
@@ -143,6 +149,11 @@ dlb_flexr_generate_output (dlb_flexr * self, dlb_buffer * outbuf, int *samples)
   return dispatch_table.generate_output (self, outbuf, samples);
 }
 
+void dlb_flexr_reset (dlb_flexr *self)
+{
+  dispatch_table.reset (self);
+}
+
 int
 dlb_flexr_query_num_outputs (const dlb_flexr * self)
 {
@@ -150,15 +161,9 @@ dlb_flexr_query_num_outputs (const dlb_flexr * self)
 }
 
 int
-dlb_flexr_query_block_samples (const dlb_flexr * self)
+dlb_flexr_query_outblk_samples (const dlb_flexr * self)
 {
-  return dispatch_table.query_block_samples (self);
-}
-
-int
-dlb_flexr_query_max_samples (const dlb_flexr * self)
-{
-  return dispatch_table.query_block_samples (self);
+  return dispatch_table.query_outblk_samples (self);
 }
 
 int
@@ -178,6 +183,12 @@ dlb_flexr_query_pushed_samples (const dlb_flexr * self,
     dlb_flexr_stream_handle stream)
 {
   return dispatch_table.query_pushed_samples (self, stream);
+}
+
+int
+dlb_flexr_finished (const dlb_flexr *self, dlb_flexr_stream_handle stream)
+{
+  return dispatch_table.finished (self, stream);
 }
 
 void

@@ -365,6 +365,7 @@ dlb_oar_set_caps (GstBaseTransform * trans, GstCaps * incaps, GstCaps * outcaps)
   gint rate, channels;
   gsize latency;
   guint64 channel_mask, oar_mask;
+  gchar *tmp;
 
   GST_DEBUG_OBJECT (oar, "incaps %" GST_PTR_FORMAT ", outcaps %" GST_PTR_FORMAT,
       incaps, outcaps);
@@ -386,8 +387,9 @@ dlb_oar_set_caps (GstBaseTransform * trans, GstCaps * incaps, GstCaps * outcaps)
 
   oar_mask = channel_mask_to_oar_speaker_config (channel_mask);
 
-  GST_LOG_OBJECT (oar, "oar output configuration: %s",
-      gst_audio_channel_positions_to_string (in.position, channels));
+  tmp = gst_audio_channel_positions_to_string (out.position, channels);
+  GST_INFO_OBJECT (oar, "oar output configuration: %s", tmp);
+  g_free (tmp);
 
   if (oar_is_opened (oar)) {
     if (oar->oar_config.sample_rate != rate) {
@@ -527,7 +529,6 @@ dlb_oar_start (GstBaseTransform * trans)
   DlbOar *oar = DLB_OAR (trans);
   GST_DEBUG_OBJECT (oar, "start");
 
-  oar->prefill = 0;
   return TRUE;
 }
 
@@ -538,6 +539,18 @@ dlb_oar_stop (GstBaseTransform * trans)
   GST_DEBUG_OBJECT (oar, "stop");
 
   oar_close (oar);
+
+  oar->max_payloads = 0;
+  oar->max_block_size = 0;
+  oar->min_block_size = 0;
+  oar->latency = 0;
+  oar->prefill = 0;
+  oar->latency_samples = 0;
+  oar->latency_time = GST_CLOCK_TIME_NONE;
+
+  oar->oar_config.speaker_mask = 0;
+  oar->oar_config.sample_rate = 0;
+
   return TRUE;
 }
 
@@ -550,7 +563,7 @@ dlb_oar_sink_event (GstBaseTransform * trans, GstEvent * event)
   GST_DEBUG_OBJECT (oar, "sink_event");
 
   switch (GST_EVENT_TYPE (event)) {
-    case GST_EVENT_FLUSH_START:
+    case GST_EVENT_FLUSH_STOP:
     case GST_EVENT_EOS:
       if (oar_is_opened (oar))
         dlb_oar_push_drain (oar);

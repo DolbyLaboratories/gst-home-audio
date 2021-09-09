@@ -43,24 +43,27 @@ struct _DlbAc3Dec
   dlb_udc_audio_info info;
   dlb_udc_output_mode mode;
 
+  dlb_buffer *outbuf;
+
   GstAllocator *alloc_dec;
   GstAllocationParams *alloc_params;
   guint8 *metadata_buffer;
-  GstBuffer *cache_buffer;
-  dlb_evo_payload *cache_metadata;
   GstTagList *tags;
 
   /* reorder positions from dolby to gstreamer */
   GstAudioChannelPosition gstpos[16];
   GstAudioChannelPosition dlbpos[16];
 
+  /* maximum output block size in bytes */
+  gsize max_output_blocksz;
+
+  /* max output channels */
+  gint max_channels;
+
   /* bytes per sample */
   gsize bps;
 
-  /* output channels */
-  gint channels;
-
-  /* target layout (set via caps property) */
+  /* target layout (depends on downstream source pad peer Caps) */
   GstAudioFormat output_format;
 
   /* static params */
@@ -69,6 +72,8 @@ struct _DlbAc3Dec
   /* dynamic params */
   gint drc_mode;
   dlb_udc_drc_settings drc;
+
+  gboolean dmx_enable;
 };
 
 struct _DlbAc3DecClass

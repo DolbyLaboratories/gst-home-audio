@@ -1,3 +1,7 @@
+import gi
+gi.require_version('Gst', '1.0')
+gi.require_version('GstAudio', '1.0')
+from gi.repository import Gst
 import argparse
 import os
 from .pipeline import GstHAFlexrPipeline
@@ -5,7 +9,7 @@ from .settings import gst_ha_flexr_settings
 
 VERSION_MAJOR  = 0
 VERSION_MINOR  = 9
-VERSION_BUGFIX = 0
+VERSION_BUGFIX = 1
 
 PREAMBLE = """
 Dolby Atmos for home audio executable
@@ -13,14 +17,14 @@ Version %d.%d.%d
 
 Supported formats:
     Dolby Digital:      .ac3
-    Dolby Digital Plus: .ec3, .eb3
+    Dolby Digital Plus: .ec3 
     PCM:                .wav
 
 """ % (VERSION_MAJOR, VERSION_MINOR, VERSION_BUGFIX)
 
-ALLOWED_FILE_EXTENSIONS = [".ac3", ".ec3", ".eb3", ".wav"]
+ALLOWED_FILE_EXTENSIONS = [".ac3", ".ec3", ".wav"]
 
-def parse_command_line():
+def parse_command_line(my_args=None):
     """
     Command line interface parser.
 
@@ -30,6 +34,11 @@ def parse_command_line():
     """
     parser = argparse.ArgumentParser(prog='gst-ha-flexr',
                                      formatter_class=argparse.RawTextHelpFormatter)
+    parser.add_argument('-wd',
+                        '--working_dir',
+                        type=str,
+                        help=argparse.SUPPRESS,
+                        required=True)
     parser.add_argument('-i',
                         '--input',
                         help='Input file name.\n'
@@ -43,10 +52,10 @@ def parse_command_line():
                         required=True)
     parser.add_argument('-o',
                         '--output',
-                        type=str,
-                        metavar='<filename>',
                         help='Defines the output WAV file name.\n'
                              '(default value: out.wav)\n\n',
+                        type=str,
+                        metavar='<filename>',
                         default='out.wav')
     parser.add_argument('-d',
                         '--dconf',
@@ -72,13 +81,26 @@ def parse_command_line():
                         action='store_true',
                         default=False)
     parser.add_argument('--debug',
+                        help=argparse.SUPPRESS,
                         action='store_true',
-                        default=False,
-                        help=argparse.SUPPRESS)
+                        default=False
+                        )
+    parser.add_argument('-gd',
+                        '--gst_debug',
+                        help='Number specyfing Gstreamer Debug Level',
+                        type=int,
+                        metavar='<val>',
+                        default=0)
+    parser.add_argument('-pg',
+                        '--pipeline_graph',
+                        help='Defines debug dot file name \n',
+                        type=str,
+                        metavar='<filename>',
+                        default=None)
 
     print(PREAMBLE)
 
-    return parser.parse_args()
+    return parser.parse_args(my_args)
 
 
 def validate_command_line(args):
@@ -139,8 +161,17 @@ def create_settings(args):
 
     return settings
 
+def gst_debug(level):
+    """Sets Gstreamer debug output
 
-def run_pipeline(plugin_path, settings):
+    Args:
+        level : Gstreamer debug level.
+    """ 
+    if level:
+        Gst.debug_set_active(True)
+        Gst.debug_set_default_threshold(level)
+
+def run_pipeline(plugin_path, settings, filename):
     """Creates and runs the Gstreamer pipeline.
 
     Args:
@@ -153,4 +184,6 @@ def run_pipeline(plugin_path, settings):
     """
     pipeline = GstHAFlexrPipeline(plugin_path,
                                   settings)
+    if filename:
+        pipeline.debug_pipeline_to_file(filename)
     pipeline.run()

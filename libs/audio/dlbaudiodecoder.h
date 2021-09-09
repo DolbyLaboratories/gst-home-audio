@@ -93,29 +93,34 @@ typedef enum
 
 G_END_DECLS
 
-GType                  dlb_audio_decoder_get_type      (void);
+GType                  dlb_audio_decoder_get_type       (void);
 
-gint                   dlb_audio_decoder_get_channels  (DlbAudioDecoderOutMode mode);
+gint                   dlb_audio_decoder_get_channels   (DlbAudioDecoderOutMode mode);
 
-void                   dlb_audio_decoder_set_out_mode  (DlbAudioDecoder *decoder,
-                                                        DlbAudioDecoderOutMode mode);
+void                   dlb_audio_decoder_set_out_mode   (DlbAudioDecoder *decoder,
+                                                         DlbAudioDecoderOutMode mode);
 
-DlbAudioDecoderOutMode dlb_audio_decoder_get_out_mode  (DlbAudioDecoder *decoder);
+DlbAudioDecoderOutMode dlb_audio_decoder_get_out_mode   (DlbAudioDecoder *decoder);
 
-void                   dlb_audio_decoder_set_drc_mode  (DlbAudioDecoder *decoder,
-                                                        DlbAudioDecoderDrcMode mode);
+void                   dlb_audio_decoder_set_drc_mode   (DlbAudioDecoder *decoder,
+                                                         DlbAudioDecoderDrcMode mode);
 
-DlbAudioDecoderDrcMode dlb_audio_decoder_get_drc_mode  (DlbAudioDecoder *decoder);
+DlbAudioDecoderDrcMode dlb_audio_decoder_get_drc_mode   (DlbAudioDecoder *decoder);
 
-void                   dlb_audio_decoder_set_drc_cut   (DlbAudioDecoder *decoder,
-                                                        gdouble val);
+void                   dlb_audio_decoder_set_drc_cut    (DlbAudioDecoder *decoder,
+                                                         gdouble val);
 
-gdouble                dlb_audio_decoder_get_drc_cut   (DlbAudioDecoder *decoder);
+gdouble                dlb_audio_decoder_get_drc_cut    (DlbAudioDecoder *decoder);
 
-void                   dlb_audio_decoder_set_drc_boost (DlbAudioDecoder *decoder,
-                                                        gdouble val);
+void                   dlb_audio_decoder_set_drc_boost  (DlbAudioDecoder *decoder,
+                                                         gdouble val);
 
-gdouble                dlb_audio_decoder_get_drc_boost (DlbAudioDecoder *decoder);
+gdouble                dlb_audio_decoder_get_drc_boost  (DlbAudioDecoder *decoder);
+
+void                   dlb_audio_decoder_set_dmx_enable (DlbAudioDecoder *decoder,
+                                                         gboolean val);
+
+gboolean               dlb_audio_decoder_get_dmx_enable (DlbAudioDecoder *decoder);
 
 GType                  dlb_audio_decoder_out_ch_config_get_type (void);
 

@@ -31,7 +31,7 @@
  */
 #define GSTMSK(ch) (G_GUINT64_CONSTANT (1) << ch)
 
-static const GstAudioChannelPosition dlb_channel_order [] = {
+static const GstAudioChannelPosition dlb_channel_order[] = {
   GST_AUDIO_CHANNEL_POSITION_FRONT_LEFT,
   GST_AUDIO_CHANNEL_POSITION_FRONT_RIGHT,
   GST_AUDIO_CHANNEL_POSITION_FRONT_CENTER,
@@ -61,7 +61,7 @@ static const GstAudioChannelPosition dlb_channel_order [] = {
 
 static gboolean
 dlb_channel_positions_from_channel_mask (gint channels,
-    const guint64 channel_mask, GstAudioChannelPosition *positions)
+    const guint64 channel_mask, GstAudioChannelPosition * positions)
 {
   guint64 tmp_mask = channel_mask;
   guint i, tmp_channels = 0;
@@ -82,6 +82,29 @@ dlb_channel_positions_from_channel_mask (gint channels,
    * if any of not supported channel mask was added then tmp != 0
    */
   return !tmp_mask;
+}
+
+static gsize
+dlb_buffer_data_size (int data_type)
+{
+  switch (data_type) {
+    case DLB_BUFFER_OCTET_UNPACKED:
+      return 1;
+    case DLB_BUFFER_OCTET_PACKED:
+      return (CHAR_BIT + 7) / 8;
+    case DLB_BUFFER_SHORT_16:
+      return sizeof (short);
+    case DLB_BUFFER_INT_LEFT:
+      return sizeof (int);
+    case DLB_BUFFER_LONG_32:
+      return sizeof (long);
+    case DLB_BUFFER_FLOAT:
+      return sizeof (float);
+    case DLB_BUFFER_DOUBLE:
+      return sizeof (double);
+    default:
+      return 0;
+  }
 }
 
 dlb_buffer *
@@ -176,6 +199,17 @@ dlb_buffer_free (dlb_buffer * buf)
   if (buf) {
     g_slice_free1 (buf->nchannel * sizeof (void *), buf->ppdata);
     g_slice_free (dlb_buffer, buf);
+  }
+}
+
+void
+dlb_buffer_map_memory (dlb_buffer * buf, const guint8 * data)
+{
+  gint i;
+  gsize bps = dlb_buffer_data_size(buf->data_type);
+
+  for (i = 0; i < buf->nchannel; ++i) {
+    buf->ppdata[i] = (void *) (data + i * bps);
   }
 }
 

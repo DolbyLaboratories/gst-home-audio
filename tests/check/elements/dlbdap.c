@@ -606,7 +606,7 @@ GST_START_TEST (test_dlb_dap_drain_on_flush_event)
   fail_unless_equals_int (gst_buffer_get_size (outbuf), (3*256 - 512) * 8 * 4);
   gst_buffer_unref (outbuf);
 
-  gst_harness_push_event (harness, gst_event_new_flush_start ());
+  gst_harness_push_event (harness, gst_event_new_flush_stop (TRUE));
   outbuf = gst_harness_pull (harness);
 
   /* (adapter + latency) x channels x sample size */

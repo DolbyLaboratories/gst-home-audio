@@ -27,20 +27,22 @@
 
 typedef struct dlb_udc_dispatch_table_s
 {
-  dlb_udc *(*new) (dlb_udc_output_mode outmode, dlb_udc_data_type data_type);
+  dlb_udc *(*new) (const dlb_udc_init_info * info);
   void (*free) (dlb_udc * self);
   void (*drc_settings_init) (dlb_udc_drc_settings * drc);
   int (*drc_settings_set) (dlb_udc * self, const dlb_udc_drc_settings * drc);
-  int (*push_frame) (dlb_udc * self, const char *indata, size_t indatasz);
-  int (*process_frame) (dlb_udc * self, uint8_t * outbuf, size_t *framesz,
-      dlb_evo_payload * metadata, dlb_udc_audio_info * audio_info,
-      size_t *audio_info_offset);
   int (*query_latency) (dlb_udc * self);
+  size_t (*query_max_outbuf_size) (dlb_udc * self);
+  int (*query_max_output_channels) (dlb_udc_output_mode mode);
+  int (*push_timeslice) (dlb_udc * self, const char *indata, size_t indatasz);
+  int (*process_block) (dlb_udc * self, dlb_buffer * outbuf, size_t *framesz,
+      dlb_evo_payload * metadata, dlb_udc_audio_info * audio_info);
 } dlb_udc_dispatch_table;
 
 static dlb_udc_dispatch_table dispatch_table;
 
-int dlb_udc_try_open_dynlib (void)
+int
+dlb_udc_try_open_dynlib (void)
 {
   void *libudc = open_dynamic_lib ("libdlb_udc.so");
   if (!libudc)
@@ -52,9 +54,14 @@ int dlb_udc_try_open_dynlib (void)
       get_proc_address (libudc, "dlb_udc_drc_settings_init");
   dispatch_table.drc_settings_set =
       get_proc_address (libudc, "dlb_udc_drc_settings_set");
-  dispatch_table.push_frame = get_proc_address (libudc, "dlb_udc_push_frame");
-  dispatch_table.process_frame =
-      get_proc_address (libudc, "dlb_udc_process_frame");
+  dispatch_table.query_max_outbuf_size =
+      get_proc_address (libudc, "dlb_udc_query_max_outbuf_size");
+  dispatch_table.query_max_output_channels =
+      get_proc_address (libudc, "dlb_udc_query_max_output_channels");
+  dispatch_table.push_timeslice =
+      get_proc_address (libudc, "dlb_udc_push_timeslice");
+  dispatch_table.process_block =
+      get_proc_address (libudc, "dlb_udc_process_block");
   dispatch_table.query_latency =
       get_proc_address (libudc, "dlb_udc_query_latency");
 
@@ -62,9 +69,9 @@ int dlb_udc_try_open_dynlib (void)
 }
 
 dlb_udc *
-dlb_udc_new (dlb_udc_output_mode outmode, dlb_udc_data_type data_type)
+dlb_udc_new (const dlb_udc_init_info * info)
 {
-  return dispatch_table.new (outmode, data_type);
+  return dispatch_table.new (info);
 }
 
 void
@@ -86,22 +93,34 @@ dlb_udc_drc_settings_set (dlb_udc * self, const dlb_udc_drc_settings * drc)
 }
 
 int
-dlb_udc_push_frame (dlb_udc * self, const char *indata, size_t indatasz)
-{
-  return dispatch_table.push_frame (self, indata, indatasz);
-}
-
-int
-dlb_udc_process_frame (dlb_udc * self, uint8_t * outbuf, size_t *framesz,
-    dlb_evo_payload * metadata, dlb_udc_audio_info * audio_info,
-    size_t *audio_info_offset)
-{
-  return dispatch_table.process_frame (self, outbuf, framesz, metadata,
-      audio_info, audio_info_offset);
-}
-
-int
-dlb_udc_query_latency (dlb_udc * self)
+dlb_udc_query_latency_samples (dlb_udc * self)
 {
   return dispatch_table.query_latency (self);
+}
+
+
+size_t
+dlb_udc_query_max_outbuf_size (dlb_udc * self)
+{
+  return dispatch_table.query_max_outbuf_size (self);
+}
+
+int
+dlb_udc_query_max_output_channels (dlb_udc_output_mode mode)
+{
+  return dispatch_table.query_max_output_channels (mode);
+}
+
+int
+dlb_udc_push_timeslice (dlb_udc * self, const char *indata, size_t indatasz)
+{
+  return dispatch_table.push_timeslice (self, indata, indatasz);
+}
+
+int
+dlb_udc_process_block (dlb_udc * self, dlb_buffer * outbuf, size_t *framesz,
+    dlb_evo_payload * metadata, dlb_udc_audio_info * audio_info)
+{
+  return dispatch_table.process_block (self, outbuf, framesz, metadata,
+      audio_info);
 }

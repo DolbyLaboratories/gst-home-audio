@@ -40,6 +40,7 @@ typedef struct dlb_flexr_stream_info_s
     dlb_flexr_input_format format;
     dlb_flexr_interp_mode interp;
     int upmix_enable;
+    int max_input_blk_samples;
 
     const uint8_t *serialized_config;
     size_t serialized_config_size;
@@ -72,16 +73,18 @@ int                     dlb_flexr_generate_output      (dlb_flexr *self,
                                                         dlb_buffer *outbuf,
                                                         int *samples);
 
+void                    dlb_flexr_reset                (dlb_flexr *self);
+
 int                     dlb_flexr_query_num_outputs    (const dlb_flexr *self);
-
-int                     dlb_flexr_query_block_samples  (const dlb_flexr *self);
-
-int                     dlb_flexr_query_max_samples    (const dlb_flexr *self);
 
 int                     dlb_flexr_query_latency        (const dlb_flexr *self);
 
+int                     dlb_flexr_query_outblk_samples (const dlb_flexr *self);
 
 int                     dlb_flexr_query_pushed_samples (const dlb_flexr *self,
+                                                        dlb_flexr_stream_handle stream);
+
+int                     dlb_flexr_finished             (const dlb_flexr *self,
                                                         dlb_flexr_stream_handle stream);
 
 void                    dlb_flexr_set_render_config    (dlb_flexr *self,

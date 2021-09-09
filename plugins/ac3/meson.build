@@ -5,7 +5,6 @@ dlbac3dec_sources = [
 
 ac3dec_deps = [
   dlb_udc_dep,
-  dlb_evo_dep,
   dlb_audio_dep,
   dlb_meta_dep,
   dlb_utils_dep,

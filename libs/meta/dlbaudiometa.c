@@ -81,7 +81,7 @@ dlb_object_audio_meta_transform (GstBuffer * dest, GstMeta * meta,
 GType
 dlb_object_audio_meta_api_get_type (void)
 {
-  static volatile GType type;
+  static GType type;
   static const gchar *tags[] = { "oamdi", NULL };
 
   if (g_once_init_enter (&type)) {

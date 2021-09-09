@@ -46,6 +46,7 @@ struct _DlbAudioDecBin
   gint drcmode;
   gdouble drccut;
   gdouble drcboost;
+  gboolean dmxenable;
 
   /* Processing elements */
   GstElement *typefind;

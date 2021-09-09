@@ -1,5 +1,5 @@
 project('gst-home-audio', 'c', 'cpp',
-         version : '0.9.0',
+         version : '0.9.1',
    meson_version : '>= 0.54.0',
  default_options : ['warning_level=1', 'buildtype=debugoptimized', 'cpp_std=c++17'])
 
@@ -95,9 +95,8 @@ gst_plugins_dlb_build_dir = meson.current_build_dir()
 # subprojects
 dlb_audio_parser_proj = subproject('dlb_audio_parser', version: '>= 1.0.0', required : false)
 dlb_buffer_proj = subproject('dlb_buffer', required : false)
-dlb_flexr_proj = subproject('dlb_flexr', version : '0.1.0', required : false)
+dlb_flexr_proj = subproject('dlb_flexr', version : '0.2.0', required : false)
 dlb_oar_proj = subproject('dlb_oar', version : '2.5.0', required : false)
-dlb_evo_proj = subproject('dlb_evo', version : '1.3', required : false)
 dlb_udc_proj = subproject('dlb_udc', version : '4.10.0', required : false)
 dlb_dap_proj = subproject('dlb_dap', version : '2.9.0.2', required : false)
 
@@ -106,7 +105,6 @@ proj_map = {
   'dlb_buffer': {'proj': dlb_buffer_proj, 'dep': []},
   'dlb_flexr': {'proj': dlb_flexr_proj, 'dep': []},
   'dlb_oar': {'proj': dlb_oar_proj, 'dep': []},
-  'dlb_evo': {'proj': dlb_evo_proj, 'dep': []},
   'dlb_udc': {'proj': dlb_udc_proj, 'dep': []},
   'dlb_dap': {'proj': dlb_dap_proj, 'dep': []},
 }
@@ -135,7 +133,6 @@ dlb_audio_parser_dep = proj_map.get('dlb_audio_parser').get('dep')
 dlb_buffer_dep = proj_map.get('dlb_buffer').get('dep')
 dlb_flexr_dep = proj_map.get('dlb_flexr').get('dep')
 dlb_oar_dep = proj_map.get('dlb_oar').get('dep')
-dlb_evo_dep = proj_map.get('dlb_evo').get('dep')
 dlb_udc_dep = proj_map.get('dlb_udc').get('dep')
 dlb_dap_dep = proj_map.get('dlb_dap').get('dep')
 

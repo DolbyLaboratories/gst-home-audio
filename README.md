@@ -230,23 +230,23 @@ $ ./gst-ha-dap -i input.xml -o output.json
 
 ## Plugins Overview
 
-### dlbc3parse
+### dlbac3parse
 Dolby Digital Plus Parser.This plug-in performs parsing of incoming  Dolby
 Digital, Dolby Digital Plus signal.
 
 **Launch Line**
 ```console
-$ gst-launch-1.0 filesrc location=<file.ec3> ! dlbac3parse ! dlbc3dec ! \
+$ gst-launch-1.0 filesrc location=<file.ec3> ! dlbac3parse ! dlbac3dec ! \
     wavenc ! filesink location=out.wav
 ```
 
-### dlbc3dec
+### dlbac3dec
 Dolby Digital Plus Decoder plug-in enables decoding Dolby Digital, Dolby
 Digital Plus bitstreams with and without Dolby Atmos content.
 
 **Launch Line**
 ```console
-$ gst-launch-1.0 filesrc location=<file.ec3> ! dlbac3parse ! dlbc3dec ! \
+$ gst-launch-1.0 filesrc location=<file.ec3> ! dlbac3parse ! dlbac3dec ! \
     wavenc ! filesink location=out.wav
 ```
 
@@ -292,7 +292,7 @@ needed. `caps` after an element determine rendering configuration.
 
 **Launch Line**
 ```console
-$ gst-launch-1.0 filesrc location=<file.ec3> ! dlbac3parse ! dlbc3dec ! dlboar \
+$ gst-launch-1.0 filesrc location=<file.ec3> ! dlbac3parse ! dlbac3dec ! dlboar ! \
     capsfilter caps="audio/x-raw,channels=8,channel-mask=(bitmask)0xc003f" ! \
     wavenc ! filesink location=out.wav
 ```
