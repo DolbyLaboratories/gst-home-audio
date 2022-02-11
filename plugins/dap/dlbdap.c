@@ -158,13 +158,13 @@ typedef unsigned int uint;
 static void                                                                    \
 fill_gst_value_array_##type (GValue *array, type *data, guint size)            \
 {                                                                              \
-  GValue row = G_VALUE_INIT;                                                   \
+  GValue val = G_VALUE_INIT;                                                   \
+  g_value_init (&val, G_TYPE_##type);                                          \
   for (gint i = 0; i < size; ++i) {                                            \
-    g_value_init (&row, G_TYPE_##type);                                        \
-    g_value_set_##type (&row, data[i]);                                        \
-    gst_value_array_append_value (array, &row);                                \
-    g_value_unset (&row);                                                      \
+    g_value_set_##type (&val, data[i]);                                        \
+    gst_value_array_append_value (array, &val);                                \
   }                                                                            \
+  g_value_unset (&val);                                                        \
 }                                                                              \
                                                                                \
 static void                                                                    \
@@ -173,8 +173,8 @@ fill_data_array_##type (type *data, guint *size, const GValue *value_array)    \
   *size = gst_value_array_get_size (value_array);                              \
                                                                                \
   for (gint i = 0; i < *size; ++i) {                                           \
-    const GValue *row = gst_value_array_get_value (value_array, i);            \
-    data[i] = g_value_get_##type (row);                                        \
+    const GValue *val = gst_value_array_get_value (value_array, i);            \
+    data[i] = g_value_get_##type (val);                                        \
   }                                                                            \
 }
 
@@ -696,6 +696,9 @@ dlb_dap_get_serialized_config_from_json (DlbDap * dap, int rate,
 
   if (dap->serialized_config && !force)
     return TRUE;
+
+  if (dap->serialized_config)
+    g_free (dap->serialized_config);
 
   dap->serialized_config =
       dlb_dap_json_parse_serialized_config (dap->json_config_path,
@@ -1607,6 +1610,7 @@ dlb_dap_push_drain (DlbDap * dap)
   if (ret != GST_FLOW_OK)
     goto transform_error;
 
+  gst_buffer_unref (inbuf);
   gst_buffer_resize (outbuf, 0, outsize);
   GST_DEBUG_OBJECT (dap, "Flushing buff of %" G_GSIZE_FORMAT " bytes", outsize);
 
@@ -1617,6 +1621,7 @@ dlb_dap_push_drain (DlbDap * dap)
   return ret;
 
 transform_error:
+  gst_buffer_unref (inbuf);
   gst_buffer_unref (outbuf);
 
 outbuf_error:

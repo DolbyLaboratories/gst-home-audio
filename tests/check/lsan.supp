@@ -1,0 +1,3 @@
+leak:call_init
+leak:_dl_init
+leak:*libpython*

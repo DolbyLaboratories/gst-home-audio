@@ -1,6 +1,6 @@
 project('gst-home-audio', 'c', 'cpp',
-         version : '0.9.1',
-   meson_version : '>= 0.54.0',
+         version : '0.9.3',
+   meson_version : '>= 0.58.0',
  default_options : ['warning_level=1', 'buildtype=debugoptimized', 'cpp_std=c++17'])
 
 system = host_machine.system()
@@ -52,6 +52,12 @@ foreach extra_arg : warning_flags
   endif
 endforeach
 
+if get_option('b_sanitize') == 'address'
+  if cc.has_argument('-fno-omit-frame-pointer')
+    add_project_arguments('-fno-omit-frame-pointer', language: 'c')
+  endif
+endif
+
 # libm, pthread
 libm = cc.find_library('m', required : false)
 dl_dep = cc.find_library('dl', required : false)
@@ -93,48 +99,52 @@ plugins_pkgconfig_install_dir = join_paths(plugins_install_dir, 'pkgconfig')
 gst_plugins_dlb_build_dir = meson.current_build_dir()
 
 # subprojects
-dlb_audio_parser_proj = subproject('dlb_audio_parser', version: '>= 1.0.0', required : false)
-dlb_buffer_proj = subproject('dlb_buffer', required : false)
-dlb_flexr_proj = subproject('dlb_flexr', version : '0.2.0', required : false)
-dlb_oar_proj = subproject('dlb_oar', version : '2.5.0', required : false)
-dlb_udc_proj = subproject('dlb_udc', version : '4.10.0', required : false)
-dlb_dap_proj = subproject('dlb_dap', version : '2.9.0.2', required : false)
-
-proj_map = {
-  'dlb_audio_parser': {'proj': dlb_audio_parser_proj, 'dep': []},
-  'dlb_buffer': {'proj': dlb_buffer_proj, 'dep': []},
-  'dlb_flexr': {'proj': dlb_flexr_proj, 'dep': []},
-  'dlb_oar': {'proj': dlb_oar_proj, 'dep': []},
-  'dlb_udc': {'proj': dlb_udc_proj, 'dep': []},
-  'dlb_dap': {'proj': dlb_dap_proj, 'dep': []},
+dep_map = {
+  'dlb_buffer': {'ver': '>= 1.0.0'},
+  'dlb_audio_parser': {'ver': '>= 1.0.0'},
+  'dlb_flexr': {'option': get_option('flexr').disabled(), 'ver': '0.6.0'},
+  'dlb_oar': {'option': get_option('oar').disabled(), 'ver': '2.5.0'},
+  'dlb_udc': {'option': get_option('ac3').disabled(), 'ver': '4.10.0'},
+  'dlb_dap': {'option': get_option('dap').disabled(), 'ver': '2.9.0.2'},
 }
 
-foreach name, info : proj_map
-  proj = info.get('proj')
-  dep = info.get('dep')
+foreach name, info : dep_map
+  ver = info.get('ver', '')
+  dep = []
 
-  if proj.found()
-    dep = proj.get_variable(name + '_dep')
-  else
-    lib = static_library(name + '_shim', 'shim'/name + '.c',
-            c_args : ['-DHAVE_CONFIG_H'],
-      dependencies : dl_dep
-    )
-    dep = declare_dependency(
-                link_with : lib,
-      include_directories : include_directories('shim')
-    )
-    core_conf.set(name.to_upper() + '_OPEN_DYNLIB', 1)
+  if not info.get('option', false)
+    dep = dependency(name, version: ver, required : false, fallback : [name, name + '_dep'])
+
+    if dep.type_name() != 'internal'
+      if dep.type_name() == 'pkgconfig'
+        libdir = dep.get_variable(pkgconfig: 'libdir') + '/'
+        libname = dep.get_variable(pkgconfig: 'libname')
+      else
+        libname = name
+        libdir = ''
+      endif
+
+      core_conf.set(name.to_upper() + '_OPEN_DYNLIB', 1)
+      core_conf.set_quoted(name.to_upper() + '_LIBNAME',
+          '@0@lib@1@.so'.format(libdir, libname))
+
+      lib = static_library(name + '_shim', 'shim'/name + '.c',
+          c_args : ['-DHAVE_CONFIG_H'], dependencies : dl_dep)
+      dep = declare_dependency(
+          link_with : lib, include_directories : include_directories('shim'))
+    endif
   endif
-  proj_map += {name: proj_map[name] + {'proj': proj, 'dep': dep}}
+  dep_map += {name: dep}
 endforeach
 
-dlb_audio_parser_dep = proj_map.get('dlb_audio_parser').get('dep')
-dlb_buffer_dep = proj_map.get('dlb_buffer').get('dep')
-dlb_flexr_dep = proj_map.get('dlb_flexr').get('dep')
-dlb_oar_dep = proj_map.get('dlb_oar').get('dep')
-dlb_udc_dep = proj_map.get('dlb_udc').get('dep')
-dlb_dap_dep = proj_map.get('dlb_dap').get('dep')
+dlb_audio_parser_dep = dep_map.get('dlb_audio_parser')
+dlb_buffer_dep = dep_map.get('dlb_buffer')
+dlb_flexr_dep = dep_map.get('dlb_flexr')
+dlb_oar_dep = dep_map.get('dlb_oar')
+dlb_udc_dep = dep_map.get('dlb_udc')
+dlb_dap_dep = dep_map.get('dlb_dap')
+
+plugins = []
 
 subdir('libs')
 subdir('plugins')
@@ -144,3 +154,12 @@ subdir('scripts')
 
 # Use core_conf after all subdirs have set values
 configure_file(input: 'config.h.in', output : 'config.h', configuration : core_conf)
+
+plugin_names = []
+foreach plugin: plugins
+  plugin_names += [plugin.name().substring(3)]
+endforeach
+
+summary({
+    'Plugins': plugin_names,
+}, list_sep: ', ')

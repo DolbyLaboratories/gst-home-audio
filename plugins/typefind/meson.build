@@ -6,7 +6,7 @@ dlb_typefind_deps = [
   dlb_audio_parser_dep,
 ]
 
-dlb_typefind = shared_library('gstdlbtypefind', dlb_typefind_sources,
+dlbtypefind = shared_library('gstdlbtypefind', dlb_typefind_sources,
                c_args : gst_plugins_dlb_args,
             link_args : gst_plugins_link_args,
   include_directories : configinc,
@@ -14,3 +14,5 @@ dlb_typefind = shared_library('gstdlbtypefind', dlb_typefind_sources,
               install : true,
           install_dir : plugins_install_dir
 )
+
+plugins += [dlbtypefind]

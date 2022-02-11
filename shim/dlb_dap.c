@@ -1,7 +1,7 @@
 /*******************************************************************************
 
  * Dolby Home Audio GStreamer Plugins
- * Copyright (C) 2020, Dolby Laboratories
+ * Copyright (C) 2020-2022, Dolby Laboratories
 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -53,7 +53,7 @@ static dlb_dap_dispatch_table dispatch_table;
 
 int dlb_dap_try_open_dynlib (void)
 {
-  void *libdap = open_dynamic_lib ("libdlb_dap.so");
+  void *libdap = open_dynamic_lib (DLB_DAP_LIBNAME);
 
   if (!libdap)
     return 1;

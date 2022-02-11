@@ -1,7 +1,7 @@
 /*******************************************************************************
 
  * Dolby Home Audio GStreamer Plugins
- * Copyright (C) 2021, Dolby Laboratories
+ * Copyright (C) 2021-2022, Dolby Laboratories
 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -29,15 +29,18 @@
 #define GST_CAT_DEFAULT dlb_flexr_debug
 GST_DEBUG_CATEGORY_STATIC (GST_CAT_DEFAULT);
 
-#define DEFAULT_PAD_VOLUME (1.0)
+#define DEFAULT_PAD_GAIN (1.0)
 #define DEFAULT_PAD_UPMIX (FALSE)
+#define DEFAULT_FORCE_ORDER (TRUE)
 
 enum
 {
   PROP_PAD_0,
   PROP_PAD_STREAM_CONFIG,
-  PROP_PAD_VOLUME,
+  PROP_PAD_INTERNAL_USER_GAIN,
+  PROP_PAD_CONTENT_NORMALIZATION_GAIN,
   PROP_PAD_UPMIX,
+  PROP_PAD_FORCE_ORDER,
   PROP_PAD_INTERP_MODE,
 };
 
@@ -72,8 +75,14 @@ dlb_flexr_pad_get_property (GObject * object, guint prop_id,
     case PROP_PAD_STREAM_CONFIG:
       g_value_set_string (value, pad->config_path);
       break;
-    case PROP_PAD_VOLUME:
-      g_value_set_double (value, pad->volume);
+    case PROP_PAD_INTERNAL_USER_GAIN:
+      g_value_set_double (value, pad->internal_user_gain);
+      break;
+    case PROP_PAD_CONTENT_NORMALIZATION_GAIN:
+      g_value_set_double (value, pad->content_normalization_gain);
+      break;
+    case PROP_PAD_FORCE_ORDER:
+      g_value_set_boolean (value, pad->force_order);
       break;
     case PROP_PAD_UPMIX:
       g_value_set_boolean (value, pad->upmix);
@@ -102,10 +111,24 @@ dlb_flexr_pad_set_property (GObject * object, guint prop_id,
           GINT_TO_POINTER (PROP_PAD_STREAM_CONFIG));
       GST_OBJECT_UNLOCK (pad);
       break;
-    case PROP_PAD_VOLUME:
+    case PROP_PAD_INTERNAL_USER_GAIN:
       GST_OBJECT_LOCK (pad);
-      pad->volume = g_value_get_double (value);
-      g_hash_table_add (pad->props_set, GINT_TO_POINTER (PROP_PAD_VOLUME));
+      pad->internal_user_gain = g_value_get_double (value);
+      g_hash_table_add (pad->props_set,
+          GINT_TO_POINTER (PROP_PAD_INTERNAL_USER_GAIN));
+      GST_OBJECT_UNLOCK (pad);
+      break;
+    case PROP_PAD_CONTENT_NORMALIZATION_GAIN:
+      GST_OBJECT_LOCK (pad);
+      pad->content_normalization_gain = g_value_get_double (value);
+      g_hash_table_add (pad->props_set,
+          GINT_TO_POINTER (PROP_PAD_CONTENT_NORMALIZATION_GAIN));
+      GST_OBJECT_UNLOCK (pad);
+      break;
+    case PROP_PAD_FORCE_ORDER:
+      GST_OBJECT_LOCK (pad);
+      pad->force_order = g_value_get_boolean (value);
+      g_hash_table_add (pad->props_set, GINT_TO_POINTER (PROP_PAD_FORCE_ORDER));
       GST_OBJECT_UNLOCK (pad);
       break;
     case PROP_PAD_UPMIX:
@@ -133,8 +156,10 @@ dlb_flexr_pad_init (DlbFlexrPad * pad)
   pad->props_set = g_hash_table_new (g_direct_hash, g_direct_equal);
 
   pad->config_path = NULL;
+  pad->force_order = 1;
   pad->upmix = 1;
-  pad->volume = 1;
+  pad->internal_user_gain = 1;
+  pad->content_normalization_gain = 1;
 }
 
 static void
@@ -165,7 +190,7 @@ dlb_flexr_pad_class_init (DlbFlexrPadClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_PAD_INTERP_MODE,
       g_param_spec_enum ("interp-mode", "Interpolation mode",
-          "Interpolation mode for this pad.", DLB_TYPE_FLEXR_INTERP_MODE,
+          "Interpolation mode for this pad", DLB_TYPE_FLEXR_INTERP_MODE,
           DLB_FLEXR_INTERP_OFFLINE,
           G_PARAM_READWRITE | G_PARAM_CONSTRUCT | G_PARAM_STATIC_STRINGS));
 
@@ -174,9 +199,24 @@ dlb_flexr_pad_class_init (DlbFlexrPadClass * klass)
           DEFAULT_PAD_UPMIX,
           G_PARAM_READWRITE | G_PARAM_CONSTRUCT | G_PARAM_STATIC_STRINGS));
 
-  g_object_class_install_property (gobject_class, PROP_PAD_VOLUME,
-      g_param_spec_double ("volume", "Volume", "Volume of this pad",
-          0.0, 10.0, DEFAULT_PAD_VOLUME,
+  g_object_class_install_property (gobject_class, PROP_PAD_FORCE_ORDER,
+      g_param_spec_boolean ("force-order", "Force order",
+          "Force Dolby specific channel order for this pad",
+          DEFAULT_FORCE_ORDER,
+          G_PARAM_READWRITE | G_PARAM_CONSTRUCT | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_PAD_INTERNAL_USER_GAIN,
+      g_param_spec_double ("internal-user-gain", "Internal User Gain",
+          "The gain as determined by user preference for this pad", 0.0, 10.0,
+          DEFAULT_PAD_GAIN,
+          G_PARAM_READWRITE | GST_PARAM_CONTROLLABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class,
+      PROP_PAD_CONTENT_NORMALIZATION_GAIN,
+      g_param_spec_double ("content-normalization-gain",
+          "Content Normalization Gain",
+          "Linear gain to bring the input to system level", 0.0,
+          10.0, DEFAULT_PAD_GAIN,
           G_PARAM_READWRITE | GST_PARAM_CONTROLLABLE | G_PARAM_STATIC_STRINGS));
 }
 
@@ -186,6 +226,7 @@ enum
   PROP_DEVICE_CONFIG,
   PROP_ACTIVE_CHANNELS_ENABLE,
   PROP_ACTIVE_CHANNELS_MASK,
+  PROP_EXTERNAL_USER_GAIN,
 };
 
 #define SRC_CAPS                                                        \
@@ -200,7 +241,7 @@ enum
   "audio/x-raw, "                                                       \
     "format = (string) {"GST_AUDIO_NE (F32)", "GST_AUDIO_NE (F64)",     \
                         "GST_AUDIO_NE (S16)", "GST_AUDIO_NE (S32)" }, " \
-    "channels = (int) {1, 2, 6, 8 }, "                                  \
+    "channels = (int) {1, 2, 6, 8, 10, 12 }, "                          \
     "rate = (int) 48000, "                                              \
     "layout = (string) interleaved; "                                   \
   "audio/x-raw(" DLB_CAPS_FEATURE_META_OBJECT_AUDIO_META "), "          \
@@ -223,6 +264,19 @@ GST_STATIC_PAD_TEMPLATE ("sink_%u",
     GST_PAD_REQUEST,
     GST_STATIC_CAPS (SINK_CAPS)
     );
+
+// A version of 5.1.2 but with front speakers that is mapped to regular 5.1.2
+#define DLB_CHANNEL_MASK_5_1_2_F                                               \
+  (DLB_CHANNEL_MASK_5_1 | GST_AUDIO_CHANNEL_POSITION_MASK(TOP_FRONT_LEFT) |    \
+   GST_AUDIO_CHANNEL_POSITION_MASK(TOP_FRONT_RIGHT))
+
+static const guint64 allowed_input_channel_masks[] = {
+  DLB_CHANNEL_MASK_2_0, DLB_CHANNEL_MASK_5_1, DLB_CHANNEL_MASK_5_1_2,
+  DLB_CHANNEL_MASK_5_1_2_F, DLB_CHANNEL_MASK_7_1, DLB_CHANNEL_MASK_5_1_4,
+  DLB_CHANNEL_MASK_7_1_4, DLB_CHANNEL_MASK_MONO,
+};
+
+static const guint64 allowed_input_channels[] = { 2, 6, 8, 8, 8, 10, 12, 1 };
 
 static void dlb_flexr_child_proxy_init (gpointer g_iface, gpointer iface_data);
 
@@ -284,7 +338,8 @@ dlb_flexr_class_init (DlbFlexrClass * klass)
   g_object_class_install_property (gobject_class, PROP_ACTIVE_CHANNELS_ENABLE,
       g_param_spec_boolean ("active-channels-enable", "Active channels enable",
           "Enable filtering of render channels", FALSE,
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
 
   g_object_class_install_property (gobject_class, PROP_ACTIVE_CHANNELS_MASK,
       g_param_spec_uint64 ("active-channels-mask", "Active channels mask",
@@ -293,9 +348,14 @@ dlb_flexr_class_init (DlbFlexrClass * klass)
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
 
+  g_object_class_install_property (gobject_class, PROP_EXTERNAL_USER_GAIN,
+      g_param_spec_double ("external-user-gain", "External User Gain",
+          "The gain to be applied by downstream external processing", 0.0, 10.0,
+          1.0,
+          G_PARAM_READWRITE | GST_PARAM_CONTROLLABLE | G_PARAM_STATIC_STRINGS));
 
-  gstelement_class->request_new_pad =
-      GST_DEBUG_FUNCPTR (dlb_flexr_request_new_pad);
+
+  gstelement_class->request_new_pad = GST_DEBUG_FUNCPTR (dlb_flexr_request_new_pad);
   gstelement_class->release_pad = GST_DEBUG_FUNCPTR (dlb_flexr_release_pad);
 
   agg_class->sink_query = GST_DEBUG_FUNCPTR (dlb_flexr_sink_query);
@@ -307,6 +367,8 @@ dlb_flexr_class_init (DlbFlexrClass * klass)
 static void
 dlb_flexr_init (DlbFlexr * flexr)
 {
+  flexr->active_channels_enable = FALSE;
+  flexr->active_channels_mask = 0x1;
   flexr->flexr_instance = NULL;
   flexr->flushing_streams = NULL;
   flexr->config_path = NULL;
@@ -314,6 +376,7 @@ dlb_flexr_init (DlbFlexr * flexr)
   flexr->streams = 0;
   flexr->latency = 0;
   flexr->blksize = 0;
+  flexr->ext_gain = 1;
 }
 
 static void
@@ -418,6 +481,9 @@ dlb_flexr_get_property (GObject * object, guint prop_id,
     case PROP_ACTIVE_CHANNELS_MASK:
       g_value_set_uint64 (value, flexr->active_channels_mask);
       break;
+    case PROP_EXTERNAL_USER_GAIN:
+      g_value_set_double (value, flexr->ext_gain);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -445,6 +511,16 @@ dlb_flexr_set_property (GObject * object, guint prop_id,
     case PROP_ACTIVE_CHANNELS_MASK:
       GST_OBJECT_LOCK (flexr);
       flexr->active_channels_mask = g_value_get_uint64 (value);
+      GST_OBJECT_UNLOCK (flexr);
+      break;
+    case PROP_EXTERNAL_USER_GAIN:
+      GST_OBJECT_LOCK (flexr);
+      flexr->ext_gain = g_value_get_double (value);
+
+      if (flexr->flexr_instance)
+        dlb_flexr_set_external_user_gain (flexr->flexr_instance,
+            flexr->ext_gain);
+
       GST_OBJECT_UNLOCK (flexr);
       break;
     default:
@@ -525,9 +601,18 @@ dlb_flexr_update_stream (DlbFlexr * flexr, DlbFlexrPad * pad)
         g_free (contents);
         break;
       }
-      case PROP_PAD_VOLUME:
-        GST_DEBUG_OBJECT (flexr, "Updating stream volume %f", pad->volume);
-        dlb_flexr_set_volume (df, h, pad->volume);
+      case PROP_PAD_INTERNAL_USER_GAIN:
+        GST_DEBUG_OBJECT (flexr, "Updating internal user gain %f",
+            pad->internal_user_gain);
+        dlb_flexr_set_internal_user_gain (df, h, pad->internal_user_gain);
+        break;
+      case PROP_PAD_CONTENT_NORMALIZATION_GAIN:
+        GST_DEBUG_OBJECT (flexr, "Updating content normalization gain %f",
+            pad->content_normalization_gain);
+        dlb_flexr_set_content_norm_gain (df, h,
+            pad->content_normalization_gain);
+        break;
+      case PROP_PAD_FORCE_ORDER:
         break;
       case PROP_PAD_UPMIX:
         break;
@@ -582,22 +667,37 @@ dlb_flexr_set_caps (DlbFlexr * flexr, GstAggregatorPad * aggpad, GstCaps * caps)
     fmt = DLB_FLEXR_INPUT_FORMAT_OBJECT;
   } else {
     GstAudioInfo info;
+    guint64 mask;
 
     if (!gst_audio_info_from_caps (&info, caps))
       goto format_error;
 
-    switch (info.channels) {
-      case 1:
+    if (!gst_audio_channel_positions_to_mask (info.position, info.channels,
+            FALSE, &mask))
+      goto format_error;
+
+    switch (mask) {
+      case DLB_CHANNEL_MASK_MONO:
         fmt = DLB_FLEXR_INPUT_FORMAT_1_0;
         break;
-      case 2:
+      case DLB_CHANNEL_MASK_2_0:
         fmt = DLB_FLEXR_INPUT_FORMAT_2_0;
         break;
-      case 6:
+      case DLB_CHANNEL_MASK_5_1:
         fmt = DLB_FLEXR_INPUT_FORMAT_5_1;
         break;
-      case 8:
+      case DLB_CHANNEL_MASK_7_1:
         fmt = DLB_FLEXR_INPUT_FORMAT_7_1;
+        break;
+      case DLB_CHANNEL_MASK_5_1_2:
+      case DLB_CHANNEL_MASK_5_1_2_F:
+        fmt = DLB_FLEXR_INPUT_FORMAT_5_1_2;
+        break;
+      case DLB_CHANNEL_MASK_5_1_4:
+        fmt = DLB_FLEXR_INPUT_FORMAT_5_1_4;
+        break;
+      case DLB_CHANNEL_MASK_7_1_4:
+        fmt = DLB_FLEXR_INPUT_FORMAT_7_1_4;
         break;
       default:
         goto format_error;
@@ -612,10 +712,8 @@ dlb_flexr_set_caps (DlbFlexr * flexr, GstAggregatorPad * aggpad, GstCaps * caps)
     pad->stream = DLB_FLEXR_STREAM_HANDLE_INVALID;
   }
 
-  dlb_flexr_stream_info_init (&info);
+  dlb_flexr_stream_info_init (&info, (guint8 *) contents, length);
 
-  info.serialized_config = (guint8 *) contents;
-  info.serialized_config_size = length;
   info.upmix_enable = pad->upmix;
   info.interp = pad->interp;
   info.format = fmt;
@@ -624,7 +722,10 @@ dlb_flexr_set_caps (DlbFlexr * flexr, GstAggregatorPad * aggpad, GstCaps * caps)
   if (!pad->stream)
     goto stream_error;
 
-  dlb_flexr_set_volume (flexr->flexr_instance, pad->stream, pad->volume);
+  dlb_flexr_set_internal_user_gain (flexr->flexr_instance, pad->stream,
+      pad->internal_user_gain);
+  dlb_flexr_set_content_norm_gain (flexr->flexr_instance, pad->stream,
+      pad->content_normalization_gain);
 
   GST_DEBUG_OBJECT (flexr, "adding new %s stream",
       have_meta ? "object" : "channel");
@@ -702,12 +803,30 @@ dlb_flexr_get_caps (DlbFlexr * flexr, GstAggregatorPad * aggpad,
     GstCaps * filter)
 {
   GstPad *pad = GST_PAD_CAST (aggpad);
-  GstCaps *result = gst_pad_get_pad_template_caps (pad);
+  GstCaps *tmpl = gst_pad_get_pad_template_caps (pad);
+
+  GstStructure *s0 = gst_caps_get_structure (tmpl, 0);
+  GstCaps *result = gst_caps_copy_nth (tmpl, 1);
+
+  gint i, N = G_N_ELEMENTS (allowed_input_channel_masks);
 
   GST_INFO_OBJECT (flexr, "Getting caps with filter %" GST_PTR_FORMAT, filter);
 
+  /* unwrap channel based caps for each channel mask */
+  for (i = 0; i < N; ++i) {
+    GstStructure *s = gst_structure_copy (s0);
+    guint64 channel_mask = allowed_input_channel_masks[i];
+    gint channels = allowed_input_channels[i];
+
+    gst_structure_remove_field (s, "channels");
+    gst_structure_set (s, "channels", G_TYPE_INT, channels, "channel-mask",
+        GST_TYPE_BITMASK, channel_mask, NULL);
+
+    result = gst_caps_merge_structure (result, s);
+  }
+
   if (filter) {
-    GstCaps *tmp = gst_caps_intersect_full (result, filter,
+    GstCaps *tmp = gst_caps_intersect_full (filter, result,
         GST_CAPS_INTERSECT_FIRST);
 
     gst_caps_unref (result);
@@ -716,6 +835,7 @@ dlb_flexr_get_caps (DlbFlexr * flexr, GstAggregatorPad * aggpad,
 
   GST_INFO_OBJECT (flexr, "returned sink caps : %" GST_PTR_FORMAT, result);
 
+  gst_caps_unref (tmpl);
   return result;
 }
 
@@ -869,13 +989,13 @@ dlb_flexr_aggregate_one_buffer (GstAudioAggregator * aagg,
     md.payload_size = meta->size;
   }
 
-  in = dlb_buffer_new_wrapped (indata, &sinkpad->info, TRUE);
+  in = dlb_buffer_new_wrapped (indata, &sinkpad->info, flexrpad->force_order);
   dlb_flexr_push_stream (flexr->flexr_instance, stream, &md, in, num_samples);
 
   if (dlb_flexr_are_all_pads_ready (flexr)) {
     GST_LOG_OBJECT (flexr, "All pads ready... processing streams");
 
-    out = dlb_buffer_new_wrapped (outdata, &srcpad->info, TRUE);
+    out = dlb_buffer_new_wrapped (outdata, &srcpad->info, FALSE);
     dlb_flexr_generate_output (flexr->flexr_instance, out, &samples);
     dlb_flexr_check_flushing_streams (flexr);
 

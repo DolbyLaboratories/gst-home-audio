@@ -139,7 +139,8 @@ int        dlb_udc_drc_settings_set          (dlb_udc *self,
 
 int        dlb_udc_query_latency_samples     (dlb_udc *self);
 
-size_t     dlb_udc_query_max_outbuf_size     (dlb_udc *self);
+size_t     dlb_udc_query_max_outbuf_size     (dlb_udc_output_mode mode,
+                                              int data_type);
 
 int        dlb_udc_query_max_output_channels (dlb_udc_output_mode mode);
 

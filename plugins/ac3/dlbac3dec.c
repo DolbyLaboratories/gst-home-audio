@@ -71,14 +71,14 @@ enum
 
 #define DLB_AC3DEC_SRC_CAPS                                             \
   "audio/x-raw, "                                                       \
-    "format = (string) {"GST_AUDIO_NE (F32)" ,"GST_AUDIO_NE (S32)" ,"   \
-            GST_AUDIO_NE (S16)"} ,"                                     \
+    "format = (string) {"GST_AUDIO_NE (F32)", "GST_AUDIO_NE (F64)",     \
+                        "GST_AUDIO_NE (S16)", "GST_AUDIO_NE (S32)" }, " \
     "channels = (int) [ 1, 16 ], "                                      \
     "rate = (int) { 32000, 44100, 48000 }, "                            \
     "layout = (string) { interleaved}; "                                \
   "audio/x-raw(" DLB_CAPS_FEATURE_META_OBJECT_AUDIO_META "),  "         \
-    "format = (string) {"GST_AUDIO_NE (F32)" ,"GST_AUDIO_NE (S32)" ,"   \
-            GST_AUDIO_NE (S16)"} ,"                                     \
+    "format = (string) {"GST_AUDIO_NE (F32)", "GST_AUDIO_NE (F64)",     \
+                        "GST_AUDIO_NE (S16)", "GST_AUDIO_NE (S32)" }, " \
     "channels = (int) [ 1, 16 ], "                                      \
     "rate = (int) { 32000, 44100, 48000 }, "                            \
     "layout = (string) { interleaved}; "                                \
@@ -378,10 +378,29 @@ dlb_ac3dec_start (GstAudioDecoder * decoder)
   GstAudioInfo audio_info;
   dlb_udc_init_info init_info;
 
+  gint data_type;
+
   GST_DEBUG_OBJECT (ac3dec, "start");
 
   /* Base on src pad peer caps evaluates sample format and size */
   evaluate_output_sample_format (ac3dec);
+
+  switch (ac3dec->output_format) {
+    case GST_AUDIO_FORMAT_F32:
+      data_type = DLB_BUFFER_FLOAT;
+      break;
+    case GST_AUDIO_FORMAT_F64:
+      data_type = DLB_BUFFER_DOUBLE;
+      break;
+    case GST_AUDIO_FORMAT_S32:
+      data_type = DLB_BUFFER_INT_LEFT;
+      break;
+    case GST_AUDIO_FORMAT_S16:
+      data_type = DLB_BUFFER_SHORT_16;
+      break;
+    default:
+      g_assert_not_reached ();
+  }
 
   memset (&ac3dec->info, 0, sizeof (ac3dec->info));
   memset (&ac3dec->gstpos, 0, sizeof (ac3dec->gstpos));
@@ -400,8 +419,9 @@ dlb_ac3dec_start (GstAudioDecoder * decoder)
   if (!ac3dec->udc)
     goto lib_error;
 
-  ac3dec->max_output_blocksz = dlb_udc_query_max_outbuf_size (ac3dec->udc);
   ac3dec->max_channels = dlb_udc_query_max_output_channels (init_info.outmode);
+  ac3dec->max_output_blocksz =
+      dlb_udc_query_max_outbuf_size (init_info.outmode, data_type);
 
   gst_audio_info_init (&audio_info);
   gst_audio_info_set_format (&audio_info, ac3dec->output_format, 48000,
@@ -734,42 +754,56 @@ update_dynamic_params (DlbAc3Dec * ac3dec)
 void
 evaluate_output_sample_format (DlbAc3Dec * ac3dec)
 {
-  GstCaps *filter_all;
-  GstCaps *filter_f32le;
-  GstCaps *filter_s32le;
-  GstCaps *filter_s16le;
+  GstCaps *filter_all, *filter_f32, *filter_f64, *filter_s32, *filter_s16;
   GstCaps *down_caps;
 
   filter_all =
-      gst_caps_from_string ("audio/x-raw,format=(string){F32LE,S32LE,S16LE}");
-  filter_f32le = gst_caps_from_string ("audio/x-raw,format=(string)F32LE");
-  filter_s32le = gst_caps_from_string ("audio/x-raw,format=(string)S32LE");
-  filter_s16le = gst_caps_from_string ("audio/x-raw,format=(string)S16LE");
+      gst_caps_from_string ("audio/x-raw,format = (string) {" GST_AUDIO_NE (F32)
+      ", " GST_AUDIO_NE (F64) ", " GST_AUDIO_NE (S16) ", " GST_AUDIO_NE (S32)
+      " }");
+
+  filter_f32 =
+      gst_caps_from_string ("audio/x-raw,format=(string) " GST_AUDIO_NE (F32)
+      "");
+  filter_f64 =
+      gst_caps_from_string ("audio/x-raw,format=(string) " GST_AUDIO_NE (F64)
+      "");
+  filter_s32 =
+      gst_caps_from_string ("audio/x-raw,format=(string) " GST_AUDIO_NE (S32)
+      "");
+  filter_s16 =
+      gst_caps_from_string ("audio/x-raw,format=(string) " GST_AUDIO_NE (S16)
+      "");
+
   down_caps =
       gst_pad_peer_query_caps (GST_AUDIO_DECODER_SRC_PAD (ac3dec), filter_all);
 
   // default format and bps
-  ac3dec->output_format = GST_AUDIO_FORMAT_F32LE;
+  ac3dec->output_format = GST_AUDIO_FORMAT_F32;
   ac3dec->bps = 4;
 
   if (down_caps) {
-    if (gst_caps_is_subset (down_caps, filter_f32le)) {
-      ac3dec->output_format = GST_AUDIO_FORMAT_F32LE;
+    if (gst_caps_is_subset (down_caps, filter_f32)) {
+      ac3dec->output_format = GST_AUDIO_FORMAT_F32;
       ac3dec->bps = 4;
-    } else if (gst_caps_is_subset (down_caps, filter_s32le)) {
-      ac3dec->output_format = GST_AUDIO_FORMAT_S32LE;
+    } else if (gst_caps_is_subset (down_caps, filter_f64)) {
+      ac3dec->output_format = GST_AUDIO_FORMAT_F64;
+      ac3dec->bps = 8;
+    } else if (gst_caps_is_subset (down_caps, filter_s32)) {
+      ac3dec->output_format = GST_AUDIO_FORMAT_S32;
       ac3dec->bps = 4;
-    } else if (gst_caps_is_subset (down_caps, filter_s16le)) {
-      ac3dec->output_format = GST_AUDIO_FORMAT_S16LE;
+    } else if (gst_caps_is_subset (down_caps, filter_s16)) {
+      ac3dec->output_format = GST_AUDIO_FORMAT_S16;
       ac3dec->bps = 2;
     }
     gst_caps_unref (down_caps);
   }
 
   gst_caps_unref (filter_all);
-  gst_caps_unref (filter_f32le);
-  gst_caps_unref (filter_s32le);
-  gst_caps_unref (filter_s16le);
+  gst_caps_unref (filter_f32);
+  gst_caps_unref (filter_f64);
+  gst_caps_unref (filter_s32);
+  gst_caps_unref (filter_s16);
 }
 
 static gboolean

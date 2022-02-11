@@ -16,25 +16,19 @@ if test $(uname -m) != "x86_64"; then
 fi
 
 cd "$projroot/.."
-rm -rf buildtmp
-mkdir buildtmp
 
-meson buildtmp --buildtype=release --prefix=/tmp/gst-home-audio --libdir=lib --bindir=bin --strip
-ninja -C buildtmp install
+rm -rf flexr-build
+rm -rf dap-build
 
-rm -rf buildtmp
-cd /tmp/
+meson flexr-build --buildtype=release --prefix=/tmp/gst-ha-flexr --libdir=lib --bindir=bin --strip -Doar=disabled -Ddap=disabled -Daudiodecbin=disabled
+ninja -C flexr-build install
 
-mkdir -p gst-ha-flexr/bin gst-ha-flexr/lib/gstreamer-1.0
-mkdir -p gst-ha-dap/bin gst-ha-dap/lib/gstreamer-1.0
+rm -rf flexr-build
 
-find gst-home-audio/bin -name "*flexr*" -exec cp -R "{}" gst-ha-flexr/bin \;
-cp -R gst-home-audio/lib gst-ha-flexr
-find gst-ha-flexr/lib \( -name "*dap*" -o -name "*oar*" -o -name "*decbin*" -o -name "*typefind*" \) -delete
+meson dap-build --buildtype=release --prefix=/tmp/gst-ha-dap --libdir=lib --bindir=bin --strip -Dflexr=disabled
+ninja -C dap-build install
 
-find gst-home-audio/bin -name "*dap*" -exec cp -R "{}" gst-ha-dap/bin \;
-cp -R gst-home-audio/lib gst-ha-dap
-find gst-ha-dap/lib -name "*flexr*" -delete
+rm -rf dap-build
 
 cd "$curdir"
 cp -r /tmp/gst-ha-flexr/* "$testroot"/Source_Code/dut/gst-ha-flexr/linux64/

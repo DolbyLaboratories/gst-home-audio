@@ -9,7 +9,7 @@ dlbaudiodecbin_deps = [
   dlb_meta_dep,
 ]
 
-audiodecbin = shared_library('gstdlbaudiodecbin', dlbaudiodecbin_sources,
+dlbaudiodecbin = shared_library('gstdlbaudiodecbin', dlbaudiodecbin_sources,
                c_args : gst_plugins_dlb_args,
             link_args : gst_plugins_link_args,
   include_directories : configinc,
@@ -17,3 +17,5 @@ audiodecbin = shared_library('gstdlbaudiodecbin', dlbaudiodecbin_sources,
               install : true,
           install_dir : plugins_install_dir,
 )
+
+plugins += [dlbaudiodecbin]

@@ -1,7 +1,7 @@
 /*******************************************************************************
 
  * Dolby Home Audio GStreamer Plugins
- * Copyright (C) 2020, Dolby Laboratories
+ * Copyright (C) 2020-2022, Dolby Laboratories
 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -32,7 +32,7 @@ typedef struct dlb_udc_dispatch_table_s
   void (*drc_settings_init) (dlb_udc_drc_settings * drc);
   int (*drc_settings_set) (dlb_udc * self, const dlb_udc_drc_settings * drc);
   int (*query_latency) (dlb_udc * self);
-  size_t (*query_max_outbuf_size) (dlb_udc * self);
+  size_t (*query_max_outbuf_size) (dlb_udc_output_mode mode, int data_type);
   int (*query_max_output_channels) (dlb_udc_output_mode mode);
   int (*push_timeslice) (dlb_udc * self, const char *indata, size_t indatasz);
   int (*process_block) (dlb_udc * self, dlb_buffer * outbuf, size_t *framesz,
@@ -44,7 +44,7 @@ static dlb_udc_dispatch_table dispatch_table;
 int
 dlb_udc_try_open_dynlib (void)
 {
-  void *libudc = open_dynamic_lib ("libdlb_udc.so");
+  void *libudc = open_dynamic_lib (DLB_UDC_LIBNAME);
   if (!libudc)
     return 1;
 
@@ -100,9 +100,9 @@ dlb_udc_query_latency_samples (dlb_udc * self)
 
 
 size_t
-dlb_udc_query_max_outbuf_size (dlb_udc * self)
+dlb_udc_query_max_outbuf_size (dlb_udc_output_mode mode, int data_type)
 {
-  return dispatch_table.query_max_outbuf_size (self);
+  return dispatch_table.query_max_outbuf_size (mode, data_type);
 }
 
 int

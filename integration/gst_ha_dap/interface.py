@@ -11,7 +11,7 @@ from .settings import gst_home_audio_settings
 
 VERSION_MAJOR  = 0
 VERSION_MINOR  = 9
-VERSION_BUGFIX = 1
+VERSION_BUGFIX = 3
 
 PREAMBLE = """
 Dolby Atmos for home audio executable

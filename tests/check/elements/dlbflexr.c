@@ -1,7 +1,7 @@
 /*******************************************************************************
 
  * Dolby Home Audio GStreamer Plugins
- * Copyright (C) 2021, Dolby Laboratories
+ * Copyright (C) 2021-2022, Dolby Laboratories
 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -59,9 +59,9 @@ GST_START_TEST (test_dlb_flexr_data_consistency)
   GstStreamConsistency *chk_1, *chk_2, *chk_3;
   GstStateChangeReturn state_ret;
 
-  const gchar *device_conf = g_build_filename (GST_FGEN_FILES_PATH,
+  gchar *device_conf = g_build_filename (GST_FGEN_FILES_PATH,
       "stereo.dconf", NULL);
-  const gchar *stream_conf = g_build_filename (GST_FGEN_FILES_PATH,
+  gchar *stream_conf = g_build_filename (GST_FGEN_FILES_PATH,
       "stereo.conf", NULL);
 
   /* build pipeline */
@@ -132,22 +132,37 @@ GST_START_TEST (test_dlb_flexr_data_consistency)
   gst_consistency_checker_free (chk_1);
   gst_consistency_checker_free (chk_2);
   gst_consistency_checker_free (chk_3);
+  gst_object_unref (flexrpad1);
+  gst_object_unref (flexrpad2);
   gst_object_unref (pipe);
+  g_free (device_conf);
+  g_free (stream_conf);
 }
-GST_END_TEST
 
-static Suite *
+GST_END_TEST static Suite *
 dlbflexr_suite (void)
 {
+  gchar *device_conf = g_build_filename (GST_FGEN_FILES_PATH,
+      "stereo.dconf", NULL);
+  gchar *stream_conf = g_build_filename (GST_FGEN_FILES_PATH,
+      "stereo.conf", NULL);
+
   Suite *s = suite_create ("dlbflexr");
-  TCase *tc_general = tcase_create ("general");
 
   /* add tests to the test case */
-  tcase_add_test (tc_general, test_dlb_flexr_data_consistency);
-  tcase_add_checked_fixture (tc_general, test_setup, test_teardown);
+  if (g_file_test (device_conf, G_FILE_TEST_EXISTS)
+      && g_file_test (stream_conf, G_FILE_TEST_EXISTS)) {
+    TCase *tc_general = tcase_create ("general");
 
-  /* add test case to the suite */
-  suite_add_tcase (s, tc_general);
+    tcase_add_test (tc_general, test_dlb_flexr_data_consistency);
+    tcase_add_checked_fixture (tc_general, test_setup, test_teardown);
+
+    /* add test case to the suite */
+    suite_add_tcase (s, tc_general);
+  }
+
+  g_free (device_conf);
+  g_free (stream_conf);
 
   return s;
 }

@@ -4,7 +4,6 @@ dlb_utils_sources = [
 
 dlb_utils_deps = [
   dlb_buffer_dep,
-  dlb_oar_dep,
 ]
 
 dlb_utils_incdir = include_directories('.')

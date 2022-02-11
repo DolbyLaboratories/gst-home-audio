@@ -38,3 +38,5 @@ dlbac3parse = library('gstdlbac3parse', dlbac3parse_sources,
               install : true,
           install_dir : plugins_install_dir,
 )
+
+plugins += [dlbac3dec, dlbac3parse]

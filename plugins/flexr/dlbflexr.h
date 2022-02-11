@@ -1,7 +1,7 @@
 /*******************************************************************************
 
  * Dolby Home Audio GStreamer Plugins
- * Copyright (C) 2021, Dolby Laboratories
+ * Copyright (C) 2021-2022, Dolby Laboratories
 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -57,6 +57,7 @@ struct _DlbFlexr {
   gint streams;
   gint latency;
   gint blksize;
+  gdouble ext_gain;
 
   gchar *config_path;
 
@@ -84,10 +85,13 @@ struct _DlbFlexrPad {
 
   gchar *config_path;
   gboolean upmix;
-  gdouble volume;
+  gdouble internal_user_gain;
+  gdouble content_normalization_gain;
 
   /*< private >*/
   GHashTable *props_set;
+
+  gboolean force_order;
 
   dlb_flexr_input_format fmt;
   dlb_flexr_stream_handle stream;

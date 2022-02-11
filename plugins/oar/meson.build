@@ -8,7 +8,7 @@ dlb_oar_deps = [
   dlb_utils_dep
 ]
 
-dlb_oar = shared_library('gstdlboar', dlb_oar_sources,
+dlboar = shared_library('gstdlboar', dlb_oar_sources,
                c_args : gst_plugins_dlb_args,
             link_args : gst_plugins_link_args,
   include_directories : configinc,
@@ -16,3 +16,5 @@ dlb_oar = shared_library('gstdlboar', dlb_oar_sources,
               install : true,
           install_dir : plugins_install_dir
 )
+
+plugins += [dlboar]

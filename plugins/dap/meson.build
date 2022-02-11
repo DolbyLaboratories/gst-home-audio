@@ -8,7 +8,7 @@ dlb_dap_deps = [
   dlb_utils_dep
 ]
 
-dlb_dap = shared_library('gstdlbdap', dlb_dap_sources,
+dlbdap = shared_library('gstdlbdap', dlb_dap_sources,
                c_args : gst_plugins_dlb_args,
             link_args : gst_plugins_link_args,
   include_directories : configinc,
@@ -16,3 +16,5 @@ dlb_dap = shared_library('gstdlbdap', dlb_dap_sources,
               install : true,
           install_dir : plugins_install_dir
 )
+
+plugins += [dlbdap]

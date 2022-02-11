@@ -741,6 +741,8 @@ dlb_oar_push_drain (DlbOar * oar)
   if (ret != GST_FLOW_OK)
     goto transform_error;
 
+
+  gst_buffer_unref (inbuf);
   gst_buffer_resize (outbuf, 0, outsize);
   GST_DEBUG_OBJECT (oar, "Flushing buff o %" G_GSIZE_FORMAT " bytes", outsize);
 
@@ -751,6 +753,7 @@ dlb_oar_push_drain (DlbOar * oar)
   return ret;
 
 transform_error:
+  gst_buffer_unref (inbuf);
   gst_buffer_unref (outbuf);
 
 outbuf_error:

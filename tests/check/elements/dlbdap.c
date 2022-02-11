@@ -49,9 +49,11 @@ dlb_dap_test_teardown (void)
 }
 
 static void
-init_buffer_ts (GstBuffer *buf, GstClockTime start_ts, guint64 offset,
+init_buffer (GstBuffer *buf, GstClockTime start_ts, guint64 offset,
     gint samples, gint rate)
 {
+  gst_buffer_memset (buf, 0, 0, gst_buffer_get_size (buf));
+
   GST_BUFFER_TIMESTAMP (buf) = start_ts;
   GST_BUFFER_PTS (buf) = start_ts;
   GST_BUFFER_OFFSET (buf) = offset;
@@ -78,6 +80,7 @@ GST_START_TEST (test_dap_src_caps_template)
 
   gst_caps_unref (srccaps);
   gst_caps_unref (templatecaps);
+  gst_object_unref (dapsrcpad);
 }
 GST_END_TEST
 
@@ -99,6 +102,7 @@ GST_START_TEST (test_dap_sink_caps_template)
 
   gst_caps_unref (sinkcaps);
   gst_caps_unref (templatecaps);
+  gst_object_unref (dapsinkpad);
 }
 GST_END_TEST
 
@@ -280,7 +284,7 @@ fail_unless_equal_gst_array_uint (const GValue *value_array,
 
 GST_START_TEST (test_dap_json_parsing)
 {
-  const gchar *json_filename = g_build_filename (GST_TEST_FILES_PATH,
+  gchar *json_filename = g_build_filename (GST_TEST_FILES_PATH,
       "default.json", NULL);
 
   gint front_speaker_angle, surr_speaker_angle, rear_surr_speaker_angle,
@@ -332,6 +336,8 @@ GST_START_TEST (test_dap_json_parsing)
     "volume-leveler-amount", &volume_leveler_amount,
     NULL);
 
+  g_free (json_filename);
+
   fail_unless (virtualizer_enable);
   fail_unless_equals_int (front_speaker_angle,        5);
   fail_unless_equals_int (surr_speaker_angle,        10);
@@ -365,21 +371,25 @@ GST_START_TEST (test_dap_json_parsing)
 
   g_object_get_property (G_OBJECT (harness->element), "ieq-freqs", &ieq_bands_val);
   fail_unless_equal_gst_array_uint (&ieq_bands_val, expected_ieq_bands);
+  g_value_unset (&ieq_bands_val);
 
   g_object_get_property (G_OBJECT (harness->element), "ieq-gains", &ieq_gains_val);
   fail_unless_equal_gst_array_int (&ieq_gains_val, expected_ieq_gains);
+  g_value_unset (&ieq_gains_val);
 
   g_object_get_property (G_OBJECT (harness->element), "geq-freqs", &geq_bands_val);
   fail_unless_equal_gst_array_uint (&geq_bands_val, expected_geq_bands);
+  g_value_unset (&geq_bands_val);
 
   g_object_get_property (G_OBJECT (harness->element), "geq-gains", &geq_gains_val);
   fail_unless_equal_gst_array_int (&geq_gains_val, expected_geq_gains);
+  g_value_unset (&geq_gains_val);
 }
 GST_END_TEST
 
 GST_START_TEST (test_dap_serialized_settings)
 {
-  const gchar *json_filename = g_build_filename (GST_TEST_FILES_PATH,
+  gchar *json_filename = g_build_filename (GST_TEST_FILES_PATH,
       "default-serialized-config.json", NULL);
 
   gchar *src_pad_caps_str = g_strdup_printf (
@@ -413,6 +423,7 @@ GST_START_TEST (test_dap_serialized_settings)
   gst_caps_unref (caps);
   g_object_unref (srcpad);
   g_free (src_pad_caps_str);
+  g_free (json_filename);
 }
 GST_END_TEST
 
@@ -427,7 +438,7 @@ GST_START_TEST (test_dap_message_post)
 
   const GstStructure *s;
 
-  const gchar *json_filename = g_build_filename (GST_TEST_FILES_PATH,
+  gchar *json_filename = g_build_filename (GST_TEST_FILES_PATH,
       "default-serialized-config.json", NULL);
 
   dap = gst_harness_find_element (harness, "dlbdap");
@@ -458,7 +469,10 @@ GST_START_TEST (test_dap_message_post)
   fail_unless_equals_int64_hex (channel_mask, 0xc003f);
 
   gst_message_unref (message);
+  gst_bus_set_flushing (bus, TRUE);
   gst_object_unref (bus);
+  gst_object_unref (dap);
+  g_free (json_filename);
 }
 GST_END_TEST
 
@@ -483,7 +497,7 @@ GST_START_TEST (test_dlb_dap_timestamps_latency_off)
   duration = gst_util_uint64_scale_int (samples, GST_SECOND, 48000);
 
   inbuf = gst_harness_create_buffer (harness, samples * channels * bps);
-  init_buffer_ts (inbuf, start_ts, 0, samples, 48000);
+  init_buffer (inbuf, start_ts, 0, samples, 48000);
 
   outbuf = gst_harness_push_and_pull (harness, inbuf);
 
@@ -498,7 +512,7 @@ GST_START_TEST (test_dlb_dap_timestamps_latency_off)
 
   gst_buffer_unref (outbuf);
   inbuf = gst_harness_create_buffer (harness, samples * channels * bps);
-  init_buffer_ts (inbuf, start_ts + duration, samples, samples, 48000);
+  init_buffer (inbuf, start_ts + duration, samples, samples, 48000);
 
   outbuf = gst_harness_push_and_pull (harness, inbuf);
 
@@ -544,7 +558,7 @@ GST_START_TEST (test_dlb_dap_timestamps_latency_on)
   duration = gst_util_uint64_scale_int (samples, GST_SECOND, 48000);
 
   inbuf = gst_harness_create_buffer (harness, samples * channels * bps);
-  init_buffer_ts (inbuf, start_ts, 0, samples, 48000);
+  init_buffer (inbuf, start_ts, 0, samples, 48000);
   outbuf = gst_harness_push_and_pull (harness, inbuf);
 
   /* 1000 samples = 3 full processing blocks of which 2 will be dropped,
@@ -558,7 +572,7 @@ GST_START_TEST (test_dlb_dap_timestamps_latency_on)
 
   gst_buffer_unref (outbuf);
   inbuf = gst_harness_create_buffer (harness, samples * channels * bps);
-  init_buffer_ts (inbuf, start_ts + duration, samples, samples, 48000);
+  init_buffer (inbuf, start_ts + duration, samples, samples, 48000);
 
   outbuf = gst_harness_push_and_pull (harness, inbuf);
 
@@ -598,7 +612,7 @@ GST_START_TEST (test_dlb_dap_drain_on_flush_event)
   gst_harness_set_src_caps_str (harness, src_pad_caps_str);
 
   inbuf = gst_harness_create_buffer (harness, samples * 6 * 4);
-  init_buffer_ts (inbuf, 0, 0, samples, 48000);
+  init_buffer (inbuf, 0, 0, samples, 48000);
 
   outbuf = gst_harness_push_and_pull (harness, inbuf);
 
@@ -633,7 +647,7 @@ GST_START_TEST (test_dlb_dap_drain_on_eos_event)
   gst_harness_set_src_caps_str (harness, src_pad_caps_str);
 
   inbuf = gst_harness_create_buffer (harness, samples * 6 * 4);
-  init_buffer_ts (inbuf, 0, 0, samples, 48000);
+  init_buffer (inbuf, 0, 0, samples, 48000);
 
   outbuf = gst_harness_push_and_pull (harness, inbuf);
 
@@ -668,7 +682,7 @@ GST_START_TEST (test_dlb_dap_drain_adapter_only)
   gst_harness_set_src_caps_str (harness, src_pad_caps_str);
 
   inbuf = gst_harness_create_buffer (harness, samples * 6 * 4);
-  init_buffer_ts (inbuf, 0, 0, samples, 48000);
+  init_buffer (inbuf, 0, 0, samples, 48000);
 
   gst_harness_push (harness, inbuf);
   gst_harness_push_event (harness, gst_event_new_eos ());

@@ -19,8 +19,7 @@ def main():
 
     settings = create_settings(args)
     run_pipeline(os.path.abspath(plugin_path),
-                 settings,
-                 args.pipeline_graph)
+                 settings)
 
 
 if __name__ == '__main__':

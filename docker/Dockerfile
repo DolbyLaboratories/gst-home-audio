@@ -24,7 +24,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gstreamer1.0-plugins-good \
     libgtest-dev \
     libjson-glib-dev \
-    ssh
+    ssh \
+    valgrind\
+    wget
 
 RUN pip3 install --no-cache-dir meson
 

@@ -1,7 +1,7 @@
 /*******************************************************************************
 
  * Dolby Home Audio GStreamer Plugins
- * Copyright (C) 2020, Dolby Laboratories
+ * Copyright (C) 2020-2022, Dolby Laboratories
 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -27,6 +27,8 @@
 
 G_BEGIN_DECLS
 
+#define DLB_CHANNEL_MASK_MONO                                                  \
+   GST_AUDIO_CHANNEL_POSITION_MASK(FRONT_CENTER)
 #define DLB_CHANNEL_MASK_2_0                                                   \
   (GST_AUDIO_CHANNEL_POSITION_MASK(FRONT_LEFT) |                               \
    GST_AUDIO_CHANNEL_POSITION_MASK(FRONT_RIGHT))
