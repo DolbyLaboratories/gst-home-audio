@@ -418,6 +418,8 @@ dlb_flexr_open (DlbFlexr * flexr)
   if (!flexr->flexr_instance)
     goto mixer_error;
 
+  dlb_flexr_set_external_user_gain (flexr->flexr_instance, flexr->ext_gain);
+
   flexr->channels = dlb_flexr_query_num_outputs (flexr->flexr_instance);
   flexr->latency = dlb_flexr_query_latency (flexr->flexr_instance);
   flexr->blksize = dlb_flexr_query_outblk_samples (flexr->flexr_instance);
