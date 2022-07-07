@@ -8,6 +8,10 @@ if test $MESON_SOURCE_ROOT = ""; then
 	exit 1
 fi
 
+# strip irrelevant README sections if exist
+sed -i'' -e '/## Status/,+2d' ${MESON_DIST_ROOT}/README.md
+sed -i'' -e '/By default, Meson is downloading Dolby project/,+6d' ${MESON_DIST_ROOT}/README.md
+
 SUBPROJECT_ACTION=$2
 SUBPROJECTS=${MESON_SOURCE_ROOT}/subprojects
 

@@ -1,7 +1,7 @@
 /*******************************************************************************
 
  * Dolby Home Audio GStreamer Plugins
- * Copyright (C) 2020, Dolby Laboratories
+ * Copyright (C) 2020-2022, Dolby Laboratories
 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -41,7 +41,7 @@ ac3_type_find (GstTypeFind * tf, gpointer unused)
   dlb_audio_parser_info info;
   dlb_audio_parser_status status;
 
-  gsize frmsize = 0, offset = 0;
+  gsize frmsize = 0, offset = 0, skip = 0;
   gboolean eac;
   const guint8 *data;
 
@@ -49,8 +49,10 @@ ac3_type_find (GstTypeFind * tf, gpointer unused)
   frmsize = dlb_audio_parser_query_min_frame_size (parser);
   data = gst_type_find_peek (tf, 0, frmsize);
 
-  while ((data = gst_type_find_peek (tf, offset, frmsize))) {
-    status = dlb_audio_parser_parse (parser, data, frmsize, &info, &offset);
+  while ((data = gst_type_find_peek (tf, offset, frmsize)) && offset < 8192) {
+    status = dlb_audio_parser_parse (parser, data, frmsize, &info, &skip);
+
+    offset += skip;
 
     if (status == DLB_AUDIO_PARSER_STATUS_OUT_OF_SYNC && offset != 0) {
       continue;
@@ -84,11 +86,11 @@ plugin_init (GstPlugin * plugin)
   GST_DEBUG_CATEGORY_INIT (dlb_type_find_debug, "dlbtypefindfunctions", 0,
       "Dolby specific type find functions");
 
-  return gst_type_find_register (plugin, "audio/x-ac3", GST_RANK_PRIMARY + 1,
+  return gst_type_find_register (plugin, "audio/x-dlb", GST_RANK_PRIMARY + 1,
       ac3_type_find, "ac3,ec3,eac3,eb3", AC3_CAPS, NULL, NULL);
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR, GST_VERSION_MINOR,
     dlbtypefind,
-    "Dolby AC-3 and E-AC-3 Decoder",
+    "Dolby typefind collection",
     plugin_init, VERSION, LICENSE, PACKAGE, ORIGIN)

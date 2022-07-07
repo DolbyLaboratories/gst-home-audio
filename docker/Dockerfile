@@ -28,7 +28,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     valgrind\
     wget
 
-RUN pip3 install --no-cache-dir meson
+RUN pip3 install --no-cache-dir \
+    meson \
+    gcovr
 
 RUN groupadd -g 1002 builder
 RUN useradd -u 1002 -g 1002 -ms /bin/bash builder

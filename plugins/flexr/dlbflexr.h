@@ -57,6 +57,7 @@ struct _DlbFlexr {
   gint streams;
   gint latency;
   gint blksize;
+  gint ext_gain_step;
   gdouble ext_gain;
 
   gchar *config_path;

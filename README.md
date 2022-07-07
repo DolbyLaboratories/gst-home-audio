@@ -84,6 +84,12 @@ GStreamer project.
 $ brew install gstreamer gst-plugins-base gst-plugins-good gst-python json-glib
 ```
 
+Install additional Python dependencies
+```console
+pip3 install pycairo
+pip3 install PyGObject
+```
+
 Build
 ```console
 $ meson build
@@ -95,8 +101,8 @@ GStreamer and the plugins can be built from source by using
 [gst-build](https://gitlab.freedesktop.org/gstreamer/gst-build), or starting
 from GStreamer 1.20, [GStreamer mono repo](https://gitlab.freedesktop.org/gstreamer/gstreamer).
 
-Install `meson` and `ninja` as instructed in the [Linux](#linux) and
-[Windows](#windows) sections above.
+Install `meson` and `ninja` as instructed in the [Linux](#linux),
+[Windows](#windows), and [macOS](#macos) sections above.
 
 On Linux systems additional dependencies may be required:
 ```console
@@ -117,6 +123,13 @@ Then build the project
 ```console
 $ cd gst-build
 $ meson builddir -Dcustom_subprojects=gst-home-audio -Dauto_features=disabled -Dgstreamer:tools=enabled
+$ ninja -C builddir
+```
+
+**Note:** *On macOS, an additional `-Dcpp_std=c++17` flag is needed to build the project*
+```console
+$ cd gst-build
+$ meson builddir -Dcustom_subprojects=gst-home-audio -Dauto_features=disabled -Dgstreamer:tools=enabled -Dcpp_std=c++17
 $ ninja -C builddir
 ```
 
@@ -253,7 +266,7 @@ $ ./gst-ha-dap -i input.xml -o output.json
 ## Plugins Overview
 
 ### dlbac3parse
-Dolby Digital Plus Parser.This plug-in performs parsing of incoming  Dolby
+Dolby Digital Plus Parser. This plug-in performs parsing of incoming  Dolby
 Digital, Dolby Digital Plus signal.
 
 **Launch Line**
@@ -283,7 +296,7 @@ Single stream:
 ```console
 $ gst-launch-1.0 \
     audiotestsrc ! \
-    dlbflexr device-config=device.conf sink_0::stream-config=stream.conf sink_0::volume=0.9 sink_0::upmix=true ! \
+    dlbflexr device-config=device.conf sink_0::stream-config=stream.conf sink_0::upmix=true ! \
     autoaudiosink
 ```
 

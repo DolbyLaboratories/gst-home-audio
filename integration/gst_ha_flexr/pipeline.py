@@ -67,6 +67,8 @@ class GstHAFlexrPipeline:
         # Set element properties
         self.flexr.set_property("device-config", self.settings.dconf)
         self.flexr.set_property("external-user-gain", self.settings.external_gain)
+        self.flexr.set_property("external-user-gain-by-step",
+                                self.settings.external_gain_by_step)
         if self.settings.active_channels_enable:
             self.flexr.set_property("active-channels-enable", True)
             self.flexr.set_property(
@@ -79,8 +81,10 @@ class GstHAFlexrPipeline:
         # Set pad properies
         self.flexr_sink_pad.set_property("stream-config", self.settings.sconf)
         self.flexr_sink_pad.set_property("upmix", self.settings.upmix)
-        self.flexr_sink_pad.set_property("content-normalization-gain", self.settings.content_gain)
+        self.flexr_sink_pad.set_property("content-normalization-gain",
+                                         self.settings.content_gain)
         self.flexr_sink_pad.set_property("internal-user-gain", self.settings.internal_gain)
+        self.flexr_sink_pad.set_property("interp-mode", self.settings.interp_mode)
 
         # Populate the pipeline
         self.pipeline.add(self.src)
@@ -123,12 +127,26 @@ class GstHAFlexrPipeline:
         self.input_type = caps.to_string()
 
         # Set flexr pad properties dependent on file type
+        force_order = False
+        set_profile = self.settings.profile != "off"
+        
         if self.input_type in DD_TYPES or "video/quicktime" in self.input_type:
             force_order = True
+            if set_profile:
+                profile_name = "dlb-"+self.settings.profile
         else:
-            force_order = False
-        self.flexr_sink_pad.set_property("force-order", force_order)
+            if set_profile:
+                profile_name = self.settings.profile
 
+        self.flexr_sink_pad.set_property("force-order", force_order)
+        
+        if set_profile:
+            self.flexr_sink_pad.set_property(
+                "content-normalization-gain",
+                self.settings.content_gain_for_profile[profile_name]
+            )
+
+        # Add elements to pipeline according to input type
         if "video/quicktime" in self.input_type:
             # Demuxer for MP4 input
             self.demux = Gst.ElementFactory.make("qtdemux", "demux")
@@ -154,6 +172,7 @@ class GstHAFlexrPipeline:
             self.dec1 = Gst.ElementFactory.make("dlbac3parse", "ac3-parser")
             # AC3 decoder
             self.dec2 = Gst.ElementFactory.make("dlbac3dec", "ac3-dec")
+
         else:
             print("Error: Unable to create pipeline - unsupported input file format.")
             self.error_kill()

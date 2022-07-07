@@ -227,7 +227,10 @@ enum
   PROP_ACTIVE_CHANNELS_ENABLE,
   PROP_ACTIVE_CHANNELS_MASK,
   PROP_EXTERNAL_USER_GAIN,
+  PROP_EXTERNAL_USER_GAIN_BY_STEP,
 };
+
+#define EXT_USER_GAIN_BY_STEP_DISABLE (-1)
 
 #define SRC_CAPS                                                        \
   "audio/x-raw, "                                                       \
@@ -354,6 +357,15 @@ dlb_flexr_class_init (DlbFlexrClass * klass)
           1.0,
           G_PARAM_READWRITE | GST_PARAM_CONTROLLABLE | G_PARAM_STATIC_STRINGS));
 
+  g_object_class_install_property (gobject_class, PROP_EXTERNAL_USER_GAIN_BY_STEP,
+      g_param_spec_int ("external-user-gain-by-step",
+          "External User Gain by Step",
+          "The gain to be applied by downstream external processing. This "
+          "property is an alternative form of external-user-gain where instead "
+          "of using the linear gain, index into the volume steps defined in "
+          "device configuration is used, (-1) - disable", -1,
+          G_MAXINT32, EXT_USER_GAIN_BY_STEP_DISABLE,
+          G_PARAM_READWRITE | GST_PARAM_CONTROLLABLE | G_PARAM_STATIC_STRINGS));
 
   gstelement_class->request_new_pad = GST_DEBUG_FUNCPTR (dlb_flexr_request_new_pad);
   gstelement_class->release_pad = GST_DEBUG_FUNCPTR (dlb_flexr_release_pad);
@@ -377,6 +389,7 @@ dlb_flexr_init (DlbFlexr * flexr)
   flexr->latency = 0;
   flexr->blksize = 0;
   flexr->ext_gain = 1;
+  flexr->ext_gain_step = EXT_USER_GAIN_BY_STEP_DISABLE;
 }
 
 static void
@@ -418,7 +431,13 @@ dlb_flexr_open (DlbFlexr * flexr)
   if (!flexr->flexr_instance)
     goto mixer_error;
 
-  dlb_flexr_set_external_user_gain (flexr->flexr_instance, flexr->ext_gain);
+  if (flexr->ext_gain_step != EXT_USER_GAIN_BY_STEP_DISABLE) {
+    int steps = dlb_flexr_query_ext_gain_steps (flexr->flexr_instance);
+    int step = MIN (steps - 1, flexr->ext_gain_step);
+    dlb_flexr_set_external_user_gain_by_step (flexr->flexr_instance, step);
+  } else {
+    dlb_flexr_set_external_user_gain (flexr->flexr_instance, flexr->ext_gain);
+  }
 
   flexr->channels = dlb_flexr_query_num_outputs (flexr->flexr_instance);
   flexr->latency = dlb_flexr_query_latency (flexr->flexr_instance);
@@ -486,6 +505,9 @@ dlb_flexr_get_property (GObject * object, guint prop_id,
     case PROP_EXTERNAL_USER_GAIN:
       g_value_set_double (value, flexr->ext_gain);
       break;
+    case PROP_EXTERNAL_USER_GAIN_BY_STEP:
+      g_value_set_int (value, flexr->ext_gain_step);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -523,6 +545,17 @@ dlb_flexr_set_property (GObject * object, guint prop_id,
         dlb_flexr_set_external_user_gain (flexr->flexr_instance,
             flexr->ext_gain);
 
+      GST_OBJECT_UNLOCK (flexr);
+      break;
+    case PROP_EXTERNAL_USER_GAIN_BY_STEP:
+      GST_OBJECT_LOCK (flexr);
+      flexr->ext_gain_step = g_value_get_int (value);
+
+      if (flexr->flexr_instance) {
+        int steps = dlb_flexr_query_ext_gain_steps (flexr->flexr_instance);
+        int step = MIN (steps - 1, flexr->ext_gain_step);
+        dlb_flexr_set_external_user_gain_by_step (flexr->flexr_instance, step);
+      }
       GST_OBJECT_UNLOCK (flexr);
       break;
     default:

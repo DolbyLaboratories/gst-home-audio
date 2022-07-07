@@ -1,6 +1,6 @@
 project('gst-home-audio', 'c', 'cpp',
-         version : '0.9.3',
-   meson_version : '>= 0.58.0',
+         version : '0.9.9',
+   meson_version : '>= 0.59.0',
  default_options : ['warning_level=1', 'buildtype=debugoptimized', 'cpp_std=c++17'])
 
 system = host_machine.system()
@@ -102,7 +102,7 @@ gst_plugins_dlb_build_dir = meson.current_build_dir()
 dep_map = {
   'dlb_buffer': {'ver': '>= 1.0.0'},
   'dlb_audio_parser': {'ver': '>= 1.0.0'},
-  'dlb_flexr': {'option': get_option('flexr').disabled(), 'ver': '0.6.0'},
+  'dlb_flexr': {'option': get_option('flexr').disabled(), 'ver': '1.0.1'},
   'dlb_oar': {'option': get_option('oar').disabled(), 'ver': '2.5.0'},
   'dlb_udc': {'option': get_option('ac3').disabled(), 'ver': '4.10.0'},
   'dlb_dap': {'option': get_option('dap').disabled(), 'ver': '2.9.0.2'},

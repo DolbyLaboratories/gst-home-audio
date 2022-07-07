@@ -13,7 +13,7 @@ from .pipeline import GstHAFlexrPipeline
 
 VERSION_MAJOR = 0
 VERSION_MINOR = 9
-VERSION_BUGFIX = 3
+VERSION_BUGFIX = 9
 
 PREAMBLE = """
 Dolby Atmos for home audio executable
@@ -43,6 +43,8 @@ def parse_command_line(my_args=None) -> argparse.Namespace:
         prog="gst-ha-flexr", formatter_class=argparse.RawTextHelpFormatter
     )
     sinks = parser.add_mutually_exclusive_group()
+    input_gains = parser.add_mutually_exclusive_group()
+    external_gains = parser.add_mutually_exclusive_group()
     parser.add_argument(
         "-wd",
         "--working_dir",
@@ -58,7 +60,8 @@ def parse_command_line(my_args=None) -> argparse.Namespace:
         "Supported formats:\n"
         "Dolby Digital:      .ac3\n"
         "Dolby Digital Plus: .ec3\n"
-        "PCM:                .wav\n\n",
+        "PCM:                .wav\n"
+        "MP4:                .mp4\n\n",
         type=str,
         metavar="<filename>",
         required=True,
@@ -116,12 +119,23 @@ def parse_command_line(my_args=None) -> argparse.Namespace:
         action="store_true",
         default=False,
     )
-    parser.add_argument(
+    input_gains.add_argument(
+        "-pr",
+        "--profile",
+        help="Select content profile.\n"
+        "Default: off\n"
+        "Not allowed with content normalization gain (-cg argument).\n\n",
+        type=str,
+        metavar="<off|movie|music>",
+        default="off",
+    )
+    input_gains.add_argument(
         "-cg",
         "--content-normalization-gain",
         help="Linear gain to bring the input to system level.\n"
         "Range: [0.0 - 10.0]\n"
-        "Default: 1.0\n\n",
+        "Default: 1.0\n"
+        "Not allowed with profile (-pr argument)\n\n",
         type=float,
         metavar="<gain>",
         default=1.0
@@ -136,7 +150,7 @@ def parse_command_line(my_args=None) -> argparse.Namespace:
         metavar="<gain>",
         default=1.0
     )
-    parser.add_argument(
+    external_gains.add_argument(
         "-eg",
         "--external-user-gain",
         help="Linear gain to be applied by downstream external processing.\n"
@@ -146,6 +160,27 @@ def parse_command_line(my_args=None) -> argparse.Namespace:
         metavar="<gain>",
         default=1.0
     )
+    external_gains.add_argument(
+        "-egs",
+        "--external-user-gain-by-step",
+        help="Linear gain to be applied by downstream external processing.\n"
+        "This property is an alternative form of external-user-gain \n"
+        "where instead of using the linear gain, index into the volume \n"
+        "steps defined in device configuration is used.\n"
+        "Default: disabled - flag not set.\n\n",
+        type=int,
+        metavar="<vol_step>",
+        default=-1
+    )
+    parser.add_argument(
+        "-im",
+        "--interp-mode",
+        help="Selects interpolation mode.\n"
+        "Default: offline\n\n",
+        type=str,
+        metavar="<offline|runtime>",
+        default="offline"
+    )
     parser.add_argument(
         "--debug",
         help=argparse.SUPPRESS,
@@ -154,7 +189,7 @@ def parse_command_line(my_args=None) -> argparse.Namespace:
     )
     parser.add_argument(
         "-gd",
-        "--gst_debug",
+        "--gst-debug",
         help="Number specyfing Gstreamer Debug Level\n\n",
         type=int,
         metavar="<val>",
@@ -162,7 +197,7 @@ def parse_command_line(my_args=None) -> argparse.Namespace:
     )
     parser.add_argument(
         "-pg",
-        "--pipeline_graph",
+        "--pipeline-graph",
         help="Defines debug dot file name\n\n",
         type=str,
         metavar="<filename>",
@@ -212,6 +247,23 @@ def validate_command_line(args) -> Tuple[bool, str]:
         if arg < 0.0 or arg > 10.0:
             return False, (
                 "Invalid gain value. Gain must be in range [0.0 - 10.0]"
+            )
+
+    if args.profile is not None:
+        if args.profile not in ["off", "music", "movie"]:
+            return False, (
+                "Invalid profile name. Allowed options are:\n"
+                "    off\n"
+                "    movie\n"
+                "    music"
+            )
+
+    if args.interp_mode is not None:
+        if args.interp_mode not in ["offline", "runtime"]:
+            return False, (
+                "Invalid interpolation mode. Allowed options are:\n"
+                "    offline\n"
+                "    runtime"
             )
 
     return True, "OK"

@@ -1,7 +1,7 @@
 /*******************************************************************************
 
  * Dolby Home Audio GStreamer Plugins
- * Copyright (C) 2020, Dolby Laboratories
+ * Copyright (C) 2020-2022, Dolby Laboratories
 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -205,8 +205,12 @@ dlb_ac3_parse_handle_frame (GstBaseParse * parse, GstBaseParseFrame * frame,
     gst_caps_unref (caps);
 
     ac3parse->stream_info = info;
-    gst_base_parse_set_frame_rate (parse, info.sample_rate, info.samples, 1, 1);
+    gst_base_parse_set_frame_rate (parse, info.sample_rate, info.samples, 0, 0);
   }
+
+  /* Update frame rate if number of samples per frame has changed */
+  if (G_UNLIKELY (ac3parse->stream_info.samples != info.samples))
+    gst_base_parse_set_frame_rate (parse, info.sample_rate, info.samples, 0, 0);
 
 cleanup:
   gst_buffer_unmap (frame->buffer, &map);

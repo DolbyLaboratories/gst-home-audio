@@ -23,6 +23,8 @@ tests = {
 env = environment()
 
 env.set('GST_PLUGIN_PATH', join_paths(gst_plugins_dlb_build_dir, 'plugins'))
+env.append('GST_PLUGIN_PATH', '/usr/local/lib/gstreamer-1.0')
+
 env.set('GSETTINGS_BACKEND', 'memory')
 env.set('CK_DEFAULT_TIMEOUT', '60')
 env.set('CK_FORK', 'no')

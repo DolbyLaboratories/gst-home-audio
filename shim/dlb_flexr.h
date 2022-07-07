@@ -100,11 +100,17 @@ void                    dlb_flexr_reset                  (dlb_flexr *self);
 void                    dlb_flexr_set_external_user_gain (dlb_flexr *self,
                                                           float gain);
 
+void                    dlb_flexr_set_external_user_gain_by_step
+                                                         (dlb_flexr *self,
+                                                          int step);
+
 int                     dlb_flexr_query_num_outputs      (const dlb_flexr *self);
 
 int                     dlb_flexr_query_latency          (const dlb_flexr *self);
 
 int                     dlb_flexr_query_outblk_samples   (const dlb_flexr *self);
+
+int                     dlb_flexr_query_ext_gain_steps   (const dlb_flexr *self);
 
 int                     dlb_flexr_query_pushed_samples   (const dlb_flexr *self,
                                                           dlb_flexr_stream_handle stream);

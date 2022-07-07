@@ -51,6 +51,8 @@ typedef struct dlb_flexr_dispatch_table_s
 
   int (*query_latency) (const dlb_flexr * self);
 
+  int (*query_ext_gain_steps) (const dlb_flexr *self);
+
   void (*stream_info_init) (dlb_flexr_stream_info * info,
       const uint8_t * serialized_config, size_t serialized_config_size);
 
@@ -66,6 +68,8 @@ typedef struct dlb_flexr_dispatch_table_s
       dlb_flexr_interp_mode interp, int xfade_blocks);
 
   void (*set_external_user_gain) (dlb_flexr * self, float gain);
+
+  void (*set_external_user_gain_by_step) (dlb_flexr *self, int step);
 
   void (*set_internal_user_gain) (dlb_flexr * self,
       dlb_flexr_stream_handle stream, float gain);
@@ -94,13 +98,14 @@ dlb_flexr_try_open_dynlib (void)
   dispatch_table.generate_output =
       get_proc_address (libflexr, "dlb_flexr_generate_output");
   dispatch_table.reset = get_proc_address (libflexr, "dlb_flexr_reset");
-
   dispatch_table.query_num_outputs =
       get_proc_address (libflexr, "dlb_flexr_query_num_outputs");
   dispatch_table.query_outblk_samples =
       get_proc_address (libflexr, "dlb_flexr_query_outblk_samples");
   dispatch_table.query_latency =
       get_proc_address (libflexr, "dlb_flexr_query_latency");
+  dispatch_table.query_ext_gain_steps =
+      get_proc_address (libflexr, "dlb_flexr_query_ext_gain_steps");
   dispatch_table.stream_info_init =
       get_proc_address (libflexr, "dlb_flexr_stream_info_init");
   dispatch_table.query_pushed_samples =
@@ -110,6 +115,8 @@ dlb_flexr_try_open_dynlib (void)
       get_proc_address (libflexr, "dlb_flexr_set_render_config");
   dispatch_table.set_external_user_gain =
       get_proc_address (libflexr, "dlb_flexr_set_external_user_gain");
+  dispatch_table.set_external_user_gain_by_step =
+      get_proc_address (libflexr, "dlb_flexr_set_external_user_gain_by_step");
   dispatch_table.set_internal_user_gain =
       get_proc_address (libflexr, "dlb_flexr_set_internal_user_gain");
   dispatch_table.set_content_norm_gain =
@@ -180,6 +187,11 @@ dlb_flexr_query_latency (const dlb_flexr * self)
   return dispatch_table.query_latency (self);
 }
 
+int dlb_flexr_query_ext_gain_steps (const dlb_flexr *self)
+{
+  return dispatch_table.query_ext_gain_steps (self);
+}
+
 void
 dlb_flexr_stream_info_init (dlb_flexr_stream_info * info,
     const uint8_t * serialized_config, size_t serialized_config_size)
@@ -212,6 +224,11 @@ dlb_flexr_set_render_config (dlb_flexr * self,
       serialized_config_size, interp, xfade_blocks);
 }
 
+void dlb_flexr_set_external_user_gain_by_step(dlb_flexr *self, int step)
+{
+  dispatch_table.set_external_user_gain_by_step (self, step);
+}
+
 void
 dlb_flexr_set_external_user_gain (dlb_flexr * self, float gain)
 {
@@ -222,7 +239,6 @@ void
 dlb_flexr_set_internal_user_gain (dlb_flexr * self,
     dlb_flexr_stream_handle stream, float gain)
 {
-
   dispatch_table.set_internal_user_gain (self, stream, gain);
 }
 

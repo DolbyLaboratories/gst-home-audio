@@ -19,9 +19,19 @@ class gst_ha_flexr_settings:
         self.upmix = False
         self.active_channels_enable = False
         self.active_channels_bitmask = 0
+        self.profile = None
         self.content_gain = 1.0
         self.internal_gain = 1.0
         self.external_gain = 1.0
+        self.external_gain_by_step = -1
+        self.content_gain_for_profile = {
+            "off": 1.0,            #  0 dB
+            "music": 0.63095,      # -4 dB
+            "movie": 1.41253,      # +3 dB
+            "dlb-music": 4.46683,  # +13 dB
+            "dlb-movie": 3.54813   # +11 dB
+        }
+        self.interp_mode = None
         self.pipeline_graph = ""
         self.device_obj = None
         self.playback_device = ""
@@ -173,9 +183,12 @@ class gst_ha_flexr_settings:
 
         # Write other settings
         self.upmix = args.upmix
+        self.profile = args.profile
+        self.content_gain = args.content_normalization_gain
         self.internal_gain = args.internal_user_gain
         self.external_gain = args.external_user_gain
-        self.content_gain = args.content_normalization_gain
+        self.external_gain_by_step = args.external_user_gain_by_step
+        self.interp_mode = args.interp_mode
         if type(args.playback) == bool:
             self._select_device()
         elif type(args.playback) == str:

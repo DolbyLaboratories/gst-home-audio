@@ -1,7 +1,7 @@
 /*******************************************************************************
 
  * Dolby Home Audio GStreamer Plugins
- * Copyright (C) 2020-2021, Dolby Laboratories
+ * Copyright (C) 2020-2022, Dolby Laboratories
 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -165,6 +165,7 @@ dlb_ac3dec_init (DlbAc3Dec * ac3dec)
   dlb_udc_drc_settings_init (&ac3dec->drc);
 
   gst_audio_decoder_set_needs_format (GST_AUDIO_DECODER (ac3dec), TRUE);
+  gst_audio_decoder_set_estimate_rate (GST_AUDIO_DECODER (ac3dec), TRUE);
   gst_audio_decoder_set_use_default_pad_acceptcaps (GST_AUDIO_DECODER_CAST
       (ac3dec), TRUE);
 
@@ -532,6 +533,7 @@ dlb_ac3dec_handle_frame (GstAudioDecoder * decoder, GstBuffer * inbuf)
       goto decode_error;
 
     if (G_UNLIKELY (!blocksz)) {
+      gst_buffer_unmap (outbuf, &outmap);
       gst_buffer_unref (outbuf);
       goto cleanup;
     }
@@ -567,7 +569,7 @@ cleanup:
   {
     gst_buffer_unmap (inbuf, &inmap);
 
-    if (ret != GST_FLOW_ERROR && blocksz) {
+    if (ret != GST_FLOW_ERROR) {
       GST_LOG_OBJECT (decoder, "finish frame");
       ret = gst_audio_decoder_finish_subframe (decoder, NULL);
     }
